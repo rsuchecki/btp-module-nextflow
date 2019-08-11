@@ -616,10 +616,9 @@ Q????
 
 
 \begin{bonus}
-While waiting for others to catch up, you may try to replace singularity profile with \texttt{conda}.
-For that, you'll need to find and load a conda module before re-running the workflow with appropriate profiles.
+For an optional exercise you may try to re-run the workflow with \texttt{conda}.
+For that, you'll need to find and load a conda module before re-running the workflow with appropriate profile. Don't forget to use the \texttt{-resume} flag.
 \begin{answer}
-
 \begin{lstlisting}
 # Find the appropriate module name
 module av -l 2>&1 | grep conda
@@ -632,6 +631,14 @@ nextflow run csiro-crop-informatics/nextflow-embl-abr-webinar -revision workshop
 
 \end{lstlisting}
 \end{answer}
+
+If you remembered to use \texttt{-resume}, why do you think it appeared to not make a difference?
+
+\begin{answer}
+We have switched from singularity to conda so the software environment has changed. 
+\end{answer}
+
+
 \end{bonus}
 
 
@@ -680,14 +687,57 @@ Since we have some inputs and configuration files at hand,
 you can start a \texttt{own.nf} script file in the current 
 directory and read the input files from \texttt{./data}. 
 
+\begin{questions}
 The simple pipeline should include the following:
 
 \begin{itemize}
 \item Code for reading FASTQ read files from \texttt{./data} individually (i.e.\ not as pairs) into a channel.
 \item A process which will take a read file, count the reads and output the file name alongside the read count.
-\item A way of aggregating the individual count files into a single table. This could be done in another process or using an operator. 
+\item A way of aggregating the individual count files into a single csv file. This could be done in another process or using an operator. 
 \end{itemize}
 
+\begin{answer}
+
+There are different ways of approaching the exercise, 
+here is an example solution.
+For comparison, we demonstrate the aggregating step both as a process
+and using the \texttt{collectFile()} operator. 
+
+\begin{lstlisting}
+readsChannel = Channel.fromPath("data/**.fastq.gz") 
+
+process countReads {
+  input:
+    file fastq from readsChannel
+
+  output:
+    file '*' into countsChannel1, countsChannel2
+
+  """
+  echo -ne "${fastq}," > count
+  zcat $fastq | paste - - - - | wc -l >> count
+  """
+}
+
+process aggregate {
+  publishDir params.outdir
+
+  input:
+    file '*.count' from countsChannel1.collect()
+
+  output:
+    file '*.csv'
+
+  """
+  cat *.count > counts_from_process.csv
+  """
+}
+
+countsChannel2.collectFile(name: 'counts_from_operator.csv', storeDir: params.outdir)
+\end{lstlisting}
+\end{answer}
+
+\end{questions}
 \subsection{Key concepts to cover}
 
 
