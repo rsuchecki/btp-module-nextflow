@@ -516,7 +516,7 @@ module load singularity-3.2.1-gcc-5.4.0-tn5ndnb
 
 # Run the workflow
 
-nextflow run main.nf -profile slurm,singularity
+nextflow run main.nf -profile slurm,singularity -resume
 \end{lstlisting}
 \end{steps}
 
@@ -582,8 +582,9 @@ Identify and investigate hidden file (starting with dot) containing the executed
 \subsection{Cluster run - all accessions}
 
 We have successfully submitted workflow to the cluster. 
-The workflow processed a single accession, let's have a closer look at the script 
-to better understand how it handles the inputs before we proceed to run it on all the accessions.
+If all went well, the workflow successfully processed a single accession, 
+let's have a closer look at the script to better understand how it handles 
+the inputs before we proceed to run it on all the accessions.
 
 
 \begin{questions}
@@ -656,15 +657,36 @@ The \texttt{.collect()} operator collects all the items emitted by a channel ret
 \end{questions}
 
 
-%\section{Extend the workflow}
-%
-%\begin{steps}
-%Edit \texttt{main.nf}. Your task is to add another multiqc process which will process all fastqc results, i.e. those from raw and from the trimmed data.\\
-%
-%%\texttt{groupTuple}?\\
-%
-%\end{steps}
+\section{Modify/extend the workflow}
 
+\begin{steps}
+
+
+Option 1\\
+Edit \texttt{main.nf}. Your task is to add another multiqc process which will summarize all fastqc results together, i.e. those from raw and from the trimmed data. \\
+%additional 2 channels, additional process with .collect
+
+Option 2 (advanced) \\
+Add a process which will take all raw reads and all paired reads for a given sample, count the number of raw paired reads and the number of paired reads remaining after the trimming.
+
+%\texttt{groupTuple}?\\
+
+\end{steps}
+
+\section{Your own workflow}
+
+It is time to have a go at your own pipeline. 
+Since we have some inputs and configuration files at hand, 
+you can start a \texttt{own.nf} script file in the current 
+directory and read the input files from \texttt{./data}. 
+
+The simple pipeline should include the following:
+
+\begin{itemize}
+\item Code for reading FASTQ read files from \texttt{./data} individually (i.e.\ not as pairs) into a channel.
+\item A process which will take a read file, count the reads and output the file name alongside the read count.
+\item A way of aggregating the individual count files into a single table. This could be done in another process or using an operator. 
+\end{itemize}
 
 \subsection{Key concepts to cover}
 
@@ -694,18 +716,14 @@ The \texttt{.collect()} operator collects all the items emitted by a channel ret
 \begin{note}
 Note that currently the default behaviour of Nextflow is to re-run an entire workflow 
 unless \texttt{-resume} option is specified at run-time, in which case a previously 
-executed process is not re-run if all its remain unchanged.
+executed process is not re-run if all its inputs remain unchanged.
 
 \end{note}
 
 
-\subsection{exercises}
+\subsection{additional exercises}
 
 \begin{enumerate}
- \item Install NF, run hello example (version run, pull, modify, drop - optional), 
- \item create/modify profile for 
-  \item software (conda or singularity)
-  \item executor (slurm)
  \item \texttt{publishDir}
  \item process selectors (optional)
 \end{enumerate}
