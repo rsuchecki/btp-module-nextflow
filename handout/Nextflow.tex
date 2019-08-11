@@ -92,7 +92,7 @@ For the purpose of this training you need access to:
 For the purpose of the workshop we will be working on the head node of an HPC cluster running \href{https://slurm.schedmd.com/documentation.html}{Slurm}.
 This is the most likely infrastructure that fellow bioinformaticians already find themselves using
 on a regular basis. We also assume that the cluster provides the \texttt{module} command for you to
-load software and the modules \texttt{java} and \texttt{singularity} are available to use.
+load software and the modules Java and Singularity are available to use.
 
 The execution of the Nextflow workflow will take place on the cluster head node with jobs
 being submitted to Slurm for queuing and processing. From the head node, Nextflow will monitor the
@@ -105,7 +105,10 @@ submitted jobs for their completion status and submit new jobs as dependent jobs
 First up, lets connect to the head node of the HPC cluster using \texttt{ssh}.
 
 \emph{See your local facilitator for connection details. You should have one user account per person.}
+
 \end{steps}
+
+\subsection{Install nextflow}
 
 
 \begin{steps}
@@ -124,7 +127,7 @@ curl -s https://get.nextflow.io | bash
 
 The installation should have placed the executable in your working directory.
 It is preferable to move the executable to a directory accessible via \texttt{\$PATH}, 
-just to be able to run \texttt{nextflow} rather than having to remember 
+to be able to run \texttt{nextflow} rather than having to remember 
 to type the full \texttt{/path/to/nextflow} each time you want to run it.
 
 Depending on the system this may suffice:
@@ -136,9 +139,11 @@ mv ./nextflow $HOME/bin
 \end{lstlisting}
 \end{steps}
 
-You should now be able to run \texttt{nextflow} without specifying its location.
+You should now be able to run \texttt{nextflow} without specifying the location of the binary.
 
 Let's see if it works by running a script which is nextflow's take on `hello world'.
+
+\subsection{Hello (nextflow) world}
 
 \begin{steps}
 \begin{lstlisting}
@@ -148,6 +153,15 @@ nextflow run hello
 
 Nextflow will pull the \texttt{nextflowio/hello} GitHub repository and run its main script.
 
+\begin{note}
+We are relying on nextflow's integration with git and git registries. 
+The alternative would be to
+\begin{lstlisting}
+git clone https://github.com/nextflow-io/hello.git
+nextflow run hello/main.nf
+\end{lstlisting}
+In which case the location of the cloned repository will be different to the one used by nextflow.
+\end{note}
 
 \begin{questions}
 Where do we find the local copy of \texttt{hello}? Hint: try \texttt{nextflow} commands related to pipeline sharing, such as \texttt{list} and \texttt{info}.
@@ -214,7 +228,7 @@ of compute and software environments as well as from other properties of the wor
 
 \subsection{The main script}
 
-A nextflow script file name can be anything but for some purposes it is preferred to stick to the default \texttt{main.nf}. The main script for the `hello' example is as follows:
+A nextflow script file name can be anything but for some purposes it is best to stick to the default \texttt{main.nf}. The main script for the `hello' example is as follows:
 
 
 \begin{lstlisting}
@@ -255,7 +269,7 @@ In addition \href{https://www.nextflow.io/docs/latest/process.html#directives}{p
 
 
 \begin{information}
-It is expected that a workflow directory contains a \texttt{nextflow.config} file, and additional config files can be included. Unsurprisingly the `hello' example does not require much configuration, so let's look at a simple but a more practical workflow.
+Nextflow looks for workflow configuration files, primarily in \texttt{nextflow.config} file, and additional config files can be included. Unsurprisingly the `hello' example does not require much configuration, so let's look at a slightly more practical workflow.
 \end{information}
 
 \newpage
@@ -272,11 +286,14 @@ cd nextflow-embl-abr-webinar
 git checkout workshop
 \end{lstlisting}
 
-
+\begin{warning}
+TODO: prepare a \texttt{workshop/noslurm} branch lacking slurm config details, 
+which the participants would check out at this stage.
+\end{warning}
 %#or
 %nextflow pull csiro-crop-informatics/nextflow-embl-abr-webinar
 
-This time in addition to \texttt{main.nf} we have a separate script which downloads the required data sets, which include a small reference FASTA file and 16 pairs of FASTQ files, each for a different bread wheat accession.
+This time, in addition to \texttt{main.nf} we have a separate script which downloads the required data sets, which include a small reference FASTA file and 16 pairs of FASTQ files, each for a different bread wheat accession.
 
 
 \begin{lstlisting}
@@ -292,13 +309,19 @@ If successful, we could now try to run the workflow...
 nextflow run main.nf
 \end{lstlisting}
 
+\begin{warning}
+This is expected to fail.\\
+Unless all the software required by the pipeline is available on the \texttt{\$PATH},
+which we don't expect, the pipeline should terminate with an error.
+The output information may help you identify the cause. 
+Spend a few minutes relating the error message content to the relevant section of the main script (\texttt{main.nf}). 
+\end{warning}
+
+
 %#or 
 %nextflow run csiro-crop-informatics/nextflow-embl-abr-webinar -revision workshop
 
-However, unless all the software required by the pipeline is available on the \texttt{\$PATH},
-which we don't expect, the pipeline will terminate with an error.
-The output information may help you identify the cause. 
-Spend a few minutes relating the error message content to the relevant section of the main script (\texttt{main.nf}). 
+
 \end{steps}
 
 \begin{questions}
@@ -339,11 +362,11 @@ There are two main issues with executing this workflow as is,
 \end{enumerate}
 
 There are different ways in which these issues could be addressed, for example using process 
-directives at the top of each process definition. 
+\emph{directives} at the top of each process definition. 
 Depending on your cluster configuration this could be for example:
 \begin{lstlisting}
 process foo {
-  executor 'sge' 
+  executor 'slurm' 
   module 'samtools/1.9' 
   //further code omitted 
 \end{lstlisting}
@@ -352,12 +375,38 @@ This is a perfectly valid syntax, which can be convenient particularly during pi
 
 \subsection{The config file(s) and profiles}
 
-As mentioned earlier, it is expected that a workflow directory contains a \texttt{nextflow.config} file. 
-For our pipeline we have defined several \emph{profiles}, which allow us to execute the logic in \texttt{main.nf} in different compute environments, while providing the required software either by creating a \texttt{conda} environment or by using Docker of Singularity containers where the conda environment has already been captured. 
+As mentioned earlier, workflow configuration belongs in \texttt{nextflow.config} file. 
+Transferring the above mention \emph{directives} from process definitions in \texttt{main.nf} 
+to \texttt{nextflow.config} would make things slightly better, e.g.
+
+\begin{lstlisting}
+#nextflow.config
+
+process.executor = 'slurm' 
+process.module = 'samtools/1.9' 
+
+or using alternative syntax
+
+process {
+  executor = slurm
+  module = 'samtools/1.9'
+}
+\end{lstlisting}
+
+This is however still a bit rigid. You may be developing your pipeline on a local machine or server and 
+where software modules are not available. 
+If developing directly in the cluster environment, you may prefer to your quick test runs 
+happen either on the head node or in an interactive session you are using, rather than jobs being submitted to sit in the always-busy cluster queue.
+
+
+Nextflow enables the definition of \emph{profiles} which enables you to run a workflow 
+with different configuration settings, including, but not limited to executors and software environment.
+
+For our pipeline we have defined several \emph{profiles}, which allow us to execute the logic in \texttt{main.nf} while providing the required software either by creating a \texttt{conda} environment or by using Docker of Singularity containers where the conda environment has already been captured. 
 
 \subsubsection{Relevant profiles}
 
-\begin{steps}
+
 Identify the profile definitions in \texttt{nextflow config}. The ones most immediately relevant are:
 \begin{lstlisting}
 profiles {
@@ -377,24 +426,88 @@ profiles {
       cacheDir = "singularity-images"  
     }
   }
-  //EXECUTORS
+}
+\end{lstlisting}
+
+
+
+As you can see, Nextflow makes it really easy to %use different executors and the configuration of 
+define software environment via Singularity or conda (we also have a docker profile). 
+%is also straightforward. 
+
+You could now run the workflow with Singularity on the head node (generally not advised), 
+or by starting an interactive session on one of the compute nodes.
+
+\begin{steps}
+\begin{lstlisting}
+srun --pty bash
+\end{lstlisting}
+
+and once you get onto one of the compute nodes we will need Singularity for nextflow to be able to pull the container image from Singularity Hub and run the containerised software. 
+By default the pipeline will process reads for a single accession.
+
+
+\begin{lstlisting}
+# Load the Singularity module 
+# If it is unavailable contact the cluster sysadmin
+
+module load singularity-3.2.1-gcc-5.4.0-tn5ndnb
+
+# Run the workflow
+
+nextflow run main.nf -profile singularity
+
+# Release the resources - leave the interactive session.
+
+exit
+\end{lstlisting}
+
+\end{steps}
+
+This is sufficient when running a workflow locally, in an interactive session or on a standalone server. 
+The next step is to get nextflow to make use of the HPC.\\ 
+
+\begin{steps}
+Edit \texttt{nextflow.config}. Your task is to add a \texttt{slurm} profile which will set the appropriate executor. 
+\end{steps}
+
+\begin{questions}
+What is your \texttt{slurm} profile configuration and where do you place it in \texttt{nextflow.config}?
+\begin{answer}
+%The following code should be placed within the \texttt{profiles \{ \}} block in \texttt{nextflow.config}.
+\begin{lstlisting}
   slurm {
     process {
       executor = 'slurm'
     }
   }
-}
 \end{lstlisting}
-\end{steps}
+\end{answer}
+\end{questions}
 
-As you can see, Nextflow makes it really easy to use different executors and the configuration of software environment via Singularity or conda is also straightforward. There are of course many setting that can and in some cases must be set - refer to \href{https://www.nextflow.io/docs/latest/executor.html}{executors section of Nextflow documentation}. 
-For running real-life pipelines in a cluster environment you will also need to make use of \href{https://www.nextflow.io/docs/latest/process.html#directives}{directives} controlling the amount of resources (\texttt{cpus, memory, time}) requested for each job. Other possibly relevant directives include \texttt{queue} and \texttt{scratch}.
+%\begin{questions}
+%\begin{answer}
+%\end{answer}
+%\end{questions}
+
+
+There are of course many setting that can and in some cases must be set - refer to \href{https://www.nextflow.io/docs/latest/executor.html}{executors section of Nextflow documentation}. 
+For running real-life pipelines in a cluster environment you will also use \href{https://www.nextflow.io/docs/latest/process.html#directives}{directives} controlling the resources (\texttt{cpus, memory, time}) requested for each job. Other possibly relevant directives include \texttt{queue} and \texttt{scratch}.
+
+
 
 \subsection{Cluster run}
 
-\begin{steps}
-To avoid running the workflow on our head node again, we will use the \texttt{slurm} profile, and the software environment is best accessed using the \texttt{singularity} profile. 
+
+To avoid running the workflow on our head node or in an interactive session, we will use the \texttt{slurm} profile you have defined.
+As before, the software environment will be handled via the \texttt{singularity} profile. 
 For that, we will need Singularity on the head node for nextflow to be able to pull the container image from Singularity Hub (we could also use a locally stored image). Singularity will also be required on the compute nodes which will run the individual tasks, but this should happen seamlessly if an appropriate module is loaded on the head node, otherwise the required module would also have to be specified in the workflow configuration files. 
+
+\begin{steps}
+By default a single accession will be processed. 
+You may use the \texttt{-resume} flag to avoid re-computing already existing results. 
+
+
 \begin{lstlisting}
 # Load the Singularity module on your cluster
 # If it is unavailable contact the cluster sysadmin
@@ -405,12 +518,73 @@ module load singularity-3.2.1-gcc-5.4.0-tn5ndnb
 
 nextflow run main.nf -profile slurm,singularity
 \end{lstlisting}
-By default a single accession will be processed. 
-From now on, use the \texttt{-resume} flag to avoid re-computing already existing results
-\begin{lstlisting}
-nextflow run main.nf -profile slurm,singularity -resume
-\end{lstlisting}
 \end{steps}
+
+%\begin{lstlisting}
+%nextflow run main.nf -profile slurm,singularity -resume
+%\end{lstlisting}
+%\end{steps}
+
+
+\subsection{Under the hood}
+
+If you think you are ready to look under the hood and try to work out how nextflow handles all the inputs, wraps process script blocks and submits them to the cluster, here is a start. 
+
+\begin{bonus}
+\begin{lstlisting}
+# Remove the work directory to limit the number of task directories to look at
+rm -r work
+# Re-run for a single sample
+nextflow run main.nf -profile slurm,singularity
+# Take a peak
+tree -ah work/ | less
+\end{lstlisting}
+
+Each task is executed in a separate directory and an abbreviated hash displayed in the terminal, can be related to a specific sub-directory of \texttt{./work},\\ such as
+\texttt{work/d2/c4517b0a81f61ceca29ec355ddeaa6/} in which you may find
+
+\begin{lstlisting}
+# NF generated files
+.command.begin
+.command.err
+.command.log
+.command.out
+.command.run
+.command.sh
+.command.trace
+.exitcode
+
+# Output file
+H45.bam
+
+# Symlinks to input files
+H45_R1.paired.fastq.gz
+H45_R2.paired.fastq.gz
+reference.fasta.gz.amb
+reference.fasta.gz.ann
+reference.fasta.gz.bwt
+reference.fasta.gz.pac
+reference.fasta.gz.sa
+\end{lstlisting}
+
+Identify and investigate hidden file (starting with dot) containing the executed script and the one containing cluster and container handling. 
+
+%\begin{questions}
+%
+%\begin{answer}
+%
+%\end{answer}
+%\end{questions}
+
+\end{bonus}
+
+
+\subsection{Cluster run - all accessions}
+
+We have successfully submitted workflow to the cluster. 
+The workflow processed a single accession, let's have a closer look at the script 
+to better understand how it handles the inputs before we proceed to run it on all the accessions.
+
 
 \begin{questions}
 In \texttt{main.nf} we create a channel which reads pairs of FASTQ files from a sub-directory of the \texttt{./data}. We then apply some \href{https://www.nextflow.io/docs/latest/operator.html}{operators}. 
@@ -419,7 +593,7 @@ Channel.fromFilePairs("data/${region}/*_R{1,2}.fastq.gz")
   .take ( params.take == "all" ? -1 : params.take ) 
   .into { readPairsChannelA; readPairsChannelB } 
 \end{verbatim}
-1. Identify the two operators and referring to \href{https://www.nextflow.io/docs/latest/operator.html}{nextflow documentation} explain the purpose of each of the two operators.\\
+1. Identify the two operators, refer to \href{https://www.nextflow.io/docs/latest/operator.html}{nextflow documentation} as required and explain the purpose of each of the two operators.\\
 \begin{answer}
 \texttt{.take($n$)}limits the number of emissions from the channel to $n$. \\
 \texttt{.into\{ $ch_1;ch_2;...;ch_n$ \}} creates channels $ch_1,ch_2,...,ch_n$ and connects source channel to the newly created channels, so that every emission is send through each new channel.
@@ -442,7 +616,7 @@ Q????
 
 \begin{bonus}
 While waiting for others to catch up, you may try to replace singularity profile with \texttt{conda}.
-For that, you'll need to find and load a conda module.
+For that, you'll need to find and load a conda module before re-running the workflow with appropriate profiles.
 \begin{answer}
 
 \begin{lstlisting}
@@ -476,12 +650,25 @@ Which \href{https://www.nextflow.io/docs/latest/operator.html}{nextflow operator
 \begin{answer}
 The \texttt{.combine()} operator outputs all combinations of items emitted by two channels. This results with a downstream process to be executed for each such combination. So e.g. \texttt{bwa\_mem} will be executed for\\ $(reference, accession_1),(reference, accession_2),..,(reference, accession_n)$.
 
-The \texttt{.collect()} operator collects all the items emitted by a channel returns the resulting List as a single emission. This is required e.g. if a process needs to be executed once for all of the samples together.  
+The \texttt{.collect()} operator collects all the items emitted by a channel returns the resulting \texttt{List} as a single emission. This is required e.g.\ if a process needs to be executed once with all the samples as input.
 \end{answer}
 
 \end{questions}
 
+
+%\section{Extend the workflow}
+%
+%\begin{steps}
+%Edit \texttt{main.nf}. Your task is to add another multiqc process which will process all fastqc results, i.e. those from raw and from the trimmed data.\\
+%
+%%\texttt{groupTuple}?\\
+%
+%\end{steps}
+
+
 \subsection{Key concepts to cover}
+
+
 
 \begin{itemize}
  \item channels
