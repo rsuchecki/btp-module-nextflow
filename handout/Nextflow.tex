@@ -9,8 +9,8 @@
 \setModuleAuthors{%
   Rados{\l}aw Suchecki \mailto{rad.suchecki@csiro.au}
 }
-\setModuleContributions{%
-%  John Doe \mailto{john.dow@example.com}%
+\setModuleContributions{
+Nathan S. Watson-Haigh \mailto{nathan.watson-haigh@adelaide.edu.au}
 }
 
 % BEGIN: Module Title Page
@@ -143,24 +143,25 @@ You should now be able to run \texttt{nextflow} without specifying the location 
 
 Let's see if it works by running a script which is nextflow's take on `hello world'.
 
-\subsection{Hello (nextflow) world}
+\subsection{Hello (nextflow) world!}
 
 \begin{steps}
 \begin{lstlisting}
-nextflow run hello
+nextflow run rsuchecki/hello
 \end{lstlisting}
 \end{steps}
 
-Nextflow will pull the \texttt{nextflowio/hello} GitHub repository and run its main script.
+Nextflow will pull the \texttt{rsuchecki/hello} GitHub repository and run its main script.\\
 
 \begin{note}
 We are relying on nextflow's integration with git and git registries. 
-The alternative would be to
-\begin{lstlisting}
-git clone https://github.com/nextflow-io/hello.git
+The \textbf{alternative} would be to
+\begin{verbatim}
+git clone https://github.com/rsuchecki/hello.git
 nextflow run hello/main.nf
-\end{lstlisting}
+\end{verbatim}
 In which case the location of the cloned repository will be different to the one used by nextflow.
+You will also not have access to nextflow-git integration functionality. 
 \end{note}
 
 \begin{questions}
@@ -170,17 +171,18 @@ Where do we find the local copy of \texttt{hello}? Hint: try \texttt{nextflow} c
 # List local clones of remote repositories
 nextflow list
 # Get detailed info about a repository 
-nextflow info hello #or nextflow nextflow-io/hello
+nextflow info hello #or nextflow rsuchecki/hello
 \end{lstlisting}
 
 \begin{verbatim}
- project name: nextflow-io/hello
- repository  : https://github.com/nextflow-io/hello
- local path  : /home/user/.nextflow/assets/nextflow-io/hello
+ project name: rsuchecki/hello
+ repository  : https://github.com/rsuchecki/hello
+ local path  : /home/rad/.nextflow/assets/rsuchecki/hello
  main script : main.nf
  revisions   : 
  * master (default)
    mybranch
+   slurm
    testing
    v1.1 [t]
    v1.2 [t]
@@ -193,16 +195,15 @@ For now, we are mostly interested in the local path to the repository, the file 
 and its contents, which we will discuss next.
 
 
-
 \begin{bonus}
 While waiting for others to catch up, why not have a look into how you would go about pulling and removing  
 local clones of remote repositories using nextflow.
 \begin{answer}
 \begin{lstlisting}
-# remove local copy of nextflow-io/hello
+# remove local copy of rsuchecki/hello
 nextflow drop hello
-# pull nextflow-io/hello from remote without running the main script
-nextflow pull hello
+# pull rsuchecki/hello from remote without running the main script
+nextflow pull rsuchecki/hello
 \end{lstlisting}
 \end{answer}
 \end{bonus}
@@ -214,7 +215,7 @@ How would you run a specific revision?
 \begin{lstlisting}
 # Available revisions 
 nextflow info hello
-# Using -r/-resume, pointing to a listed tag or branch
+# Using -r/-revision, pointing to a listed tag or branch
 nextflow run hello -revision v1.1
 \end{lstlisting}
 \end{answer}
@@ -222,13 +223,30 @@ nextflow run hello -revision v1.1
 
 \section{Nextflow basics}
 
+\subsection{Processes and channels}
+
+
+\begin{itemize}
+\item \emph{process} -- a wrapper for a language-agnostic script which ensures isolation of the executed code.
+\item \emph{channel} -- an asynchronous\footnote{send operation completes immediately, receiving stops the receiving process until the message has arrived} FIFO queue which facilitates data flow to/from/between processes by linking their outputs/inputs.
+\end{itemize}
+
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=.8\textwidth]{handout/channel-process.png}
+\caption{Nextflow building blocks: Channels and processes. A \texttt{task} is an instance of a process. Tasks are created implicitly, one for each emission (data chunk) from the input channel. Credit: Evan Floden}
+\label{fig:proc-chn}
+\end{figure}
+
 Nextflow facilitates but does not enforce separation of workflow logic from the configuration
 of compute and software environments as well as from other properties of the workflow.
 
 
 \subsection{The main script}
 
-A nextflow script file name can be anything but for some purposes it is best to stick to the default \texttt{main.nf}. The main script for the `hello' example is as follows:
+A nextflow script file name can be anything but in most cases it is best to stick to the default \texttt{main.nf}. 
+The main script for the `hello' example is as follows:
 
 
 \begin{lstlisting}
@@ -246,6 +264,8 @@ process sayHello {
     """
 }
 \end{lstlisting}
+
+
 
 A channel called \texttt{cheers} is created and emits each of the listed strings separately. 
 A separate instance of the process \texttt{sayHello} is executed for each emission. 
@@ -268,30 +288,118 @@ In addition \href{https://www.nextflow.io/docs/latest/process.html#directives}{p
 \end{note}
 
 
-\begin{information}
+\subsection{Hello HPC!}
+
+The nextflow hello example shown us how the \texttt{sayHello} process was executed separately for each input string as a separate \emph{task}, but all the tasks were executed locally on our cluster's head node. 
+We would now like each task to be submitted as a batch job for execution on one of the compute nodes.
+
+\begin{steps}
+\begin{lstlisting}
+nextflow run rsuchecki/hello -revision slurm
+\end{lstlisting}
+\end{steps}
+
+This is the modified version of the \texttt{main.nf} script. 
+Submission to Slurm was achieved by adding \texttt{executor 'slurm'} directive to the process definition.
+
+\begin{lstlisting}
+#!/usr/bin/env nextflow
+echo true
+
+cheers = Channel.from 'Bonjour', 'Ciao', 'Hello', 'Hola'
+
+process sayHello {
+  executor 'slurm'
+
+  input:
+    val x from cheers
+  script:
+    """
+    echo "$x world from \$HOSTNAME on Slurm!"
+    """
+}
+\end{lstlisting}
+
+You might also have noticed that we have modified the script block so that the messages printed to the terminal include the name of the compute node on which a given task is executed. 
+
+\begin{warning}
+Note the difference between how nextflow and bash variables are included in the script block.
+There are alternative ways of passing scripts for execution by nextflow processes which may be more convenient if your script contains multiple special characters.
+\end{warning}
+
+
+\subsection{Hello task caching!}
+
+When the pipeline is launched with the \texttt{-resume} option, 
+any attempt to execute already executed process with the same inputs,
+will cause the process execution to be skipped, 
+producing the stored data as the output.
+
+%The caching feature generates a unique key by indexing the process script and inputs. 
+%This key is used to identify the outputs produced by the process execution.
+
+\begin{steps}
+\begin{lstlisting}
+nextflow run rsuchecki/hello -revision slurm -resume
+\end{lstlisting}
+\end{steps}
+
+To avoid unintentionally re-computing long running tasks you may consider 
+always running your pipelines with \texttt{-resume} and only omitting it
+on rare occasions when you want to re-compute the results
+even though inputs have not changed. 
+
+\url{https://www.nextflow.io/docs/latest/process.html#cache}
+
+\subsection{Hello params}
+
+Single-dashed parameter names are reserved for nextflow engine (\texttt{-resume, -revision, -ansi-log false} etc). 
+The double-dashed params are all yours and you are free to use them for your workflow. 
+When you \texttt{nextflow run ...} a workflow with say \texttt{--foo bar}, 
+the variable \texttt{params.foo} will evaluate to the value `bar'.
+
+In the `hello' example we use \texttt{params.world}, so lets try to use an alternative string.
+\begin{steps}
+\begin{lstlisting}
+nextflow run rsuchecki/hello -revision slurm --world Mundo
+\end{lstlisting}
+\end{steps}
+
+\subsection{Goodbye Hello}
+
 Nextflow looks for workflow configuration files, primarily in \texttt{nextflow.config} file, and additional config files can be included. Unsurprisingly the `hello' example does not require much configuration, so let's look at a slightly more practical workflow.
-\end{information}
+
 
 \newpage
 
 \section{Example workflow}
 
-Although not strictly necessary for running the pipeline, in the training context it makes sense to start by cloning the workflow repository and moving to the directory.
+We are going to work with an example Nextflow workflow to demonstrate how they are run, 
+improve your understanding of \emph{processes} and \emph{channels} and finally introduce \\emph{operators}, which will allow you to shape and direct data flowing through the channels. 
+
+
+This example workflow consists of the following steps:
+
+\begin{itemize}
+  \item Running FastQC across the raw reads
+  \item Aggregating the raw read FastQC reports using MultiQC
+  \item Performing adapter, quality, and read length filtering using Trimmomatic
+  \item Running FastQC across the QC'd reads
+  \item Aggregating the QC read FastQC reports using MultiQC
+  \item Indexing the reference FASTA file
+  \item Performing a \texttt{bwa-mem} read alignment
+\end{itemize}
 
 
 \begin{steps}
-\begin{lstlisting}
-git clone https://github.com/csiro-crop-informatics/nextflow-embl-abr-webinar.git
-cd nextflow-embl-abr-webinar
-git checkout workshop
-\end{lstlisting}
+Although not necessary for simply running the pipeline, in the training context it makes sense to start by cloning the workflow repository and moving to the directory.
 
-\begin{warning}
-TODO: prepare a \texttt{workshop/noslurm} branch lacking slurm config details, 
-which the participants would check out at this stage.
-\end{warning}
-%#or
-%nextflow pull csiro-crop-informatics/nextflow-embl-abr-webinar
+\begin{lstlisting}
+git clone https://github.com/csiro-crop-informatics/nextflow-embl-abr-webinar.git example_workflow
+cd example_workflow
+git checkout noslurm
+git branch
+\end{lstlisting}
 
 This time, in addition to \texttt{main.nf} we have a separate script which downloads the required data sets, which include a small reference FASTA file and 16 pairs of FASTQ files, each for a different bread wheat accession.
 
@@ -371,11 +479,13 @@ process foo {
   //further code omitted 
 \end{lstlisting}
 
-This is a perfectly valid syntax, which can be convenient particularly during pipeline development, but for more portable workflows it is preferable to keep compute and software environment configuration separate from pipeline logic - i.e.\ not in the workflow script (\texttt{main.nf}).
+This is a perfectly valid syntax, which can be convenient particularly during pipeline development, 
+but for more portable workflows it is preferable to keep compute and software environment configuration 
+separate from pipeline logic - i.e.\ not in the workflow script (\texttt{main.nf}).
 
 \subsection{The config file(s) and profiles}
 
-As mentioned earlier, workflow configuration belongs in \texttt{nextflow.config} file. 
+Workflow configuration belongs in \texttt{nextflow.config} file. 
 Transferring the above mention \emph{directives} from process definitions in \texttt{main.nf} 
 to \texttt{nextflow.config} would make things slightly better, e.g.
 
@@ -384,22 +494,27 @@ to \texttt{nextflow.config} would make things slightly better, e.g.
 
 process.executor = 'slurm' 
 process.module = 'samtools/1.9' 
+\end{lstlisting}
 
-or using alternative syntax
+or using the preferred syntax
 
+\begin{lstlisting}
 process {
   executor = slurm
   module = 'samtools/1.9'
 }
 \end{lstlisting}
 
-This is however still a bit rigid. You may be developing your pipeline on a local machine or server and 
-where software modules are not available. 
-If developing directly in the cluster environment, you may prefer to your quick test runs 
-happen either on the head node or in an interactive session you are using, rather than jobs being submitted to sit in the always-busy cluster queue.
+
+This is however still a bit rigid. 
+\begin{itemize}
+\item You may be developing your pipeline on a local machine or a server where software modules are not available. 
+\item If developing directly in the cluster environment, you may prefer your quick test runs to happen either on the head node or in an interactive session you are using, rather than always having jobs submitted to sit in the always-busy cluster queue.
+\end{itemize}
 
 
-Nextflow enables the definition of \emph{profiles} which enables you to run a workflow 
+
+Nextflow enables the definition of \emph{profiles} which make it easy to run a workflow 
 with different configuration settings, including, but not limited to executors and software environment.
 
 For our pipeline we have defined several \emph{profiles}, which allow us to execute the logic in \texttt{main.nf} while providing the required software either by creating a \texttt{conda} environment or by using Docker of Singularity containers where the conda environment has already been captured. 
@@ -413,7 +528,7 @@ profiles {
   //SOFTWARE
   conda {
     process {
-      conda = "\$baseDir/conf/conda.yaml"
+      conda = "$baseDir/conf/conda.yaml"
     }
   }
   singularity {
@@ -432,21 +547,29 @@ profiles {
 
 
 As you can see, Nextflow makes it really easy to %use different executors and the configuration of 
-define software environment via Singularity or conda (we also have a docker profile). 
+define software environment via Singularity or Conda\footnote{We also have a docker profile which you may find useful if you decide to run the workflow on your machine}. 
 %is also straightforward. 
 
-You could now run the workflow with Singularity on the head node (generally not advised), 
-or by starting an interactive session on one of the compute nodes.
+%You could now run the workflow with Singularity on the head node (generally not advised), 
+%or by starting an interactive session on one of the compute nodes.
+%
+%\begin{steps}
+%\begin{lstlisting}
+%srun --pty bash
+%\end{lstlisting}
+
+%and once you get onto one of the compute nodes 
+
+
+Given that Singlularity is available on our cluster, let's start by using that profile,
+as the most robust way of setting up the software environment.
+
+
+
+We will need Singularity for nextflow to be able to pull the container image from Singularity Hub and run the containerised software. 
+By default the pipeline will process reads for a single accession -- our head node should be able to handle this. 
 
 \begin{steps}
-\begin{lstlisting}
-srun --pty bash
-\end{lstlisting}
-
-and once you get onto one of the compute nodes we will need Singularity for nextflow to be able to pull the container image from Singularity Hub and run the containerised software. 
-By default the pipeline will process reads for a single accession.
-
-
 \begin{lstlisting}
 # Load the Singularity module 
 # If it is unavailable contact the cluster sysadmin
@@ -456,16 +579,14 @@ module load singularity-3.2.1-gcc-5.4.0-tn5ndnb
 # Run the workflow
 
 nextflow run main.nf -profile singularity
-
-# Release the resources - leave the interactive session.
-
-exit
 \end{lstlisting}
-
 \end{steps}
+%# Release the resources - leave the interactive session.
+%exit
 
 This is sufficient when running a workflow locally, in an interactive session or on a standalone server. 
-The next step is to get nextflow to make use of the HPC.\\ 
+The next step is to get nextflow to make use of the HPC batch submission system, to be able to run the full workflow 
+without unleashing your sysadmins wrath.\\ 
 
 \begin{steps}
 Edit \texttt{nextflow.config}. Your task is to add a \texttt{slurm} profile which will set the appropriate executor. 
@@ -474,7 +595,7 @@ Edit \texttt{nextflow.config}. Your task is to add a \texttt{slurm} profile whic
 \begin{questions}
 What is your \texttt{slurm} profile configuration and where do you place it in \texttt{nextflow.config}?
 \begin{answer}
-%The following code should be placed within the \texttt{profiles \{ \}} block in \texttt{nextflow.config}.
+The following code should be placed within the \texttt{profiles\{\}} block in \texttt{nextflow.config}.
 \begin{lstlisting}
   slurm {
     process {
@@ -491,15 +612,18 @@ What is your \texttt{slurm} profile configuration and where do you place it in \
 %\end{questions}
 
 
-There are of course many setting that can and in some cases must be set - refer to \href{https://www.nextflow.io/docs/latest/executor.html}{executors section of Nextflow documentation}. 
-For running real-life pipelines in a cluster environment you will also use \href{https://www.nextflow.io/docs/latest/process.html#directives}{directives} controlling the resources (\texttt{cpus, memory, time}) requested for each job. Other possibly relevant directives include \texttt{queue} and \texttt{scratch}.
+There are of course many setting that can and in some cases must be set -- refer to 
+\href{https://www.nextflow.io/docs/latest/executor.html}{executors section of Nextflow documentation}\footnote{\url{https://www.nextflow.io/docs/latest/executor.html}}. 
+For running real-life pipelines in a cluster environment you will also use 
+\href{https://www.nextflow.io/docs/latest/process.html#directives}{directives} \footnote{\url{https://www.nextflow.io/docs/latest/process.html\#directives}}
+controlling the resources (\texttt{cpus, memory, time}) requested for each job. Other possibly relevant directives include \texttt{queue} and \texttt{scratch}.
 
 
 
 \subsection{Cluster run}
 
 
-To avoid running the workflow on our head node or in an interactive session, we will use the \texttt{slurm} profile you have defined.
+To avoid running the workflow on our head node or in an interactive session, we will use the \texttt{slurm} profile you have defined\footnote{If you are struggling and can't get help, try: \texttt{git stash \&\& git checkout workshop}}. 
 As before, the software environment will be handled via the \texttt{singularity} profile. 
 For that, we will need Singularity on the head node for nextflow to be able to pull the container image from Singularity Hub (we could also use a locally stored image). Singularity will also be required on the compute nodes which will run the individual tasks, but this should happen seamlessly if an appropriate module is loaded on the head node, otherwise the required module would also have to be specified in the workflow configuration files. 
 
@@ -528,19 +652,21 @@ nextflow run main.nf -profile slurm,singularity -resume
 
 \subsection{Under the hood}
 
-If you think you are ready to look under the hood and try to work out how nextflow handles all the inputs, wraps process script blocks and submits them to the cluster, here is a start. 
+If you think you are ready to look under the hood and try to work out how nextflow stages process inputs, wraps process script blocks and submits them to the cluster, here is a start. 
 
-\begin{bonus}
+\begin{advanced}
 \begin{lstlisting}
 # Remove the work directory to limit the number of task directories to look at
 rm -r work
 # Re-run for a single sample
 nextflow run main.nf -profile slurm,singularity
 # Take a peak
+ls -la work/ | less
+# or
 tree -ah work/ | less
 \end{lstlisting}
 
-Each task is executed in a separate directory and an abbreviated hash displayed in the terminal, can be related to a specific sub-directory of \texttt{./work},\\ such as
+Each task is executed in a separate directory and every abbreviated hash displayed in the terminal can be related to a specific sub-directory of \texttt{./work},\\ such as
 \texttt{work/d2/c4517b0a81f61ceca29ec355ddeaa6/} in which you may find
 
 \begin{lstlisting}
@@ -576,44 +702,79 @@ Identify and investigate hidden file (starting with dot) containing the executed
 %\end{answer}
 %\end{questions}
 
-\end{bonus}
+\end{advanced}
 
 
 \subsection{Cluster run - all accessions}
 
 We have successfully submitted workflow to the cluster. 
+
+To be sure, feel free to re-run it again (and again, and again...) 
+with \texttt{-resume} to avoid wasting CPU cycles.
+
+\begin{steps}
+\begin{lstlisting}
+nextflow run main.nf -profile slurm,singularity -resume
+\end{lstlisting}
+\end{steps}
+
 If all went well, the workflow successfully processed a single accession, 
 let's have a closer look at the script to better understand how it handles 
 the inputs before we proceed to run it on all the accessions.
 
-
 \begin{questions}
-In \texttt{main.nf} we create a channel which reads pairs of FASTQ files from a sub-directory of the \texttt{./data}. We then apply some \href{https://www.nextflow.io/docs/latest/operator.html}{operators}. 
+In \texttt{main.nf} we create a channel which reads pairs of FASTQ files from a sub-directory of the \texttt{./data}. We then apply some operators. 
 \begin{verbatim}
 Channel.fromFilePairs("data/${region}/*_R{1,2}.fastq.gz")
   .take ( params.take == "all" ? -1 : params.take ) 
   .into { readPairsChannelA; readPairsChannelB } 
 \end{verbatim}
-1. Identify the two operators, refer to \href{https://www.nextflow.io/docs/latest/operator.html}{nextflow documentation} as required and explain the purpose of each of the two operators.\\
+1. Identify the two operators, refer to 
+\href{https://www.nextflow.io/docs/latest/operator.html}{nextflow documentation}\footnote{\url{https://www.nextflow.io/docs/latest/operator.html}}
+as required and explain the purpose of each of the two operators.\\
 \begin{answer}
-\texttt{.take($n$)}limits the number of emissions from the channel to $n$. \\
-\texttt{.into\{ $ch_1;ch_2;...;ch_n$ \}} creates channels $ch_1,ch_2,...,ch_n$ and connects source channel to the newly created channels, so that every emission is send through each new channel.
+\texttt{.take($n$)} limits the number of emissions from the channel to the first $n$ items. \\
+\texttt{.into\{ $ch_1;ch_2;...;ch_n$ \}} creates channels $ch_1,ch_2,...,ch_n$ and connects source channel to the newly created channels, so that every emission is sent through each new channel.
 \end{answer}
 
-2. How can you run the workflow for more than one accession? How about all of them?
+2. How can you run the workflow for more than one accession? How about all of them? Recall that workflow parameters use double-dash syntax. Run the relevant commands.  
 \begin{answer}
 \begin{lstlisting}
 nextflow run main.nf -profile slurm,singularity -resume --take 2
 nextflow run main.nf -profile slurm,singularity -resume --take all
 \end{lstlisting}
 \end{answer}
-
-3. Investigate \texttt{main.nf} to identify the processes which consume \texttt{readPairsChannelA} and \texttt{readPairsChannelB}. \\
-
-Q????
-
+%3. Investigate \texttt{main.nf} to identify the processes which consume \texttt{readPairsChannelA} and \texttt{readPairsChannelB}. \\
+%
+%Q????
+%
 \end{questions}
 
+\subsubsection{Monitoring your jobs on our cluster}
+
+\begin{note}
+You can monitor your job(s) in the slurm queue using the slurm command \texttt{squeue}:
+
+\begin{lstlisting}
+squeue --user ${USER}
+\end{lstlisting}
+
+For convenience you are also provided with the \texttt{sq} function which produces nicer output and by default only shows your own jobs:
+
+\begin{lstlisting}
+sq
+
+# Someone elses jobs
+sq --user ${SOMEONE_ELSE}
+\end{lstlisting}
+
+If you want to see all jobs in the queue:
+
+\begin{lstlisting}
+squeue
+\end{lstlisting}
+
+\end{note}
 
 \begin{bonus}
 For an optional exercise you may try to re-run the workflow with \texttt{conda}.
@@ -668,6 +829,8 @@ The \texttt{.collect()} operator collects all the items emitted by a channel ret
 
 \begin{steps}
 
+Option 0\\
+Edit \texttt{main.nf}. Your task is to add a process which will merge the bam files produced by the \texttt{bwa\_mem} process.\\ 
 
 Option 1\\
 Edit \texttt{main.nf}. Your task is to add another multiqc process which will summarize all fastqc results together, i.e. those from raw and from the trimmed data. \\
@@ -680,12 +843,14 @@ Add a process which will take all raw reads and all paired reads for a given sam
 
 \end{steps}
 
-\section{Your own workflow}
+\section{Your own workflow - TODO: replace with variant calling?}
 
 It is time to have a go at your own pipeline. 
 Since we have some inputs and configuration files at hand, 
 you can start a \texttt{own.nf} script file in the current 
 directory and read the input files from \texttt{./data}. 
+
+
 
 \begin{questions}
 The simple pipeline should include the following:
@@ -779,118 +944,32 @@ executed process is not re-run if all its inputs remain unchanged.
 \end{enumerate}
 
 
-%There are 10 characters which have special meaning in \LaTeX and to have them displayed as literal
-%characters we need to do something special. The first seven can simply be prepended by a backslash;
-%for the other three, we must use the macros \verb+\textasciitilde+, \verb+\textasciicircum+,
-%\verb+\textbackslash+.
-%
-%
-%\& \% \$ \# \_ \{ \}
-%
-%\textasciitilde
-%
-%\textasciicircum
-%
-%\textbackslash
-%
-%Highly redundant coverage ($>$15X) of the genome can be used to correct sequencing
-%errors in the reads before assembly and errors. Various k-mer based error
-%correction methods exist but are beyond the scope of this tutorial.
-%
-%In order to use a single character to encode Phred qualities, ASCII characters
-%are used (\url{http://shop.alterlinks.com/ascii-table/ascii-table-us.php}). All ASCII characters have a decimal
-%number associated with them but the first 32 characters are non-printable (e.g.
-%
-%Because ASCII characters $<$ 33 are non-printable, using the Phred+33 encoding was
-%not possible. Therefore, they simply moved the offset from 33 to 64 thus
-%
-%schema it is not always possible to identify what encoding is in use. For
-%example, if the only characters seen in the quality string are (\texttt{@ABCDEFGHI}),
-%then it is impossible to know if you have really good Phred+33 encoded qualities
-%or really bad Phred+64 encoded qualities.
+%========================
+\section{Troubleshooting}
+%========================
 
-%\subsection{Tables}
-%
-%Writing tables in \LaTeX is HARD! Rather than write them from scratch, I'd head over to
-%\url{http://www.tablesgenerator.com/latex_tables}, generate the table you want using the interactive
-%page and copy the resulting \LaTeX into your source file.
-%
-%\begin{tabular}{llr}
-%\hline
-%\multicolumn{2}{c}{Item} \\
-%\cline{1-2}
-%Animal    & Description & Price (\$) \\
-%\hline
-%Gnat      & per gram    & 13.65      \\
-%          & each        & 0.01       \\
-%Gnu       & stuffed     & 92.50      \\
-%Emu       & stuffed     & 33.33      \\
-%Armadillo & frozen      & 8.99       \\
-%\hline
-%\end{tabular}
+\subsection{Disconnected from the cluster?}  
 
-%\subsection{Figures}
-%
-%No handout is complete without figures, screenshots or similar.
-%
-%\begin{figure}[H]
-%\centering
-%\includegraphics[width=0.8\textwidth]{handout/bad_example.png}
-%\caption{Per base sequence quality plot for \texttt{bad\_example.fastq}.}
-%\label{fig:bad_example_untrimmed_plot}
-%\end{figure}
-
-%\subsection{Maths Environment}
-%
-%I won't pretend to be an expert in \LaTeX but I do know that one of the strengths of \LaTeX is it's
-%ability to allow mathematical formulas to be constructed and typeset very easily. Firstly, you have
-%to tell \LaTeX what text is going to contain mathematical symbols.
-%
-%For inline display, simply surround the relevant text by dollar signs: \verb+$Q(A) =-10 log10(P(\sim A))$+
-%
-%For more complex mathematical formulas which need to be displayed separately, use the
-%\verb+\begin{displaymath} ... \end{displaymath}+ environment to wrap around your formulas.
-%
-%\begin{displaymath}
-%Q(A) =-10 log10(P(\sim A))
-%\end{displaymath}
+\subsection{Missing modules - new shell session?}
 
 
 
+Make sure all the required modules are loaded. 
+
+\begin{steps}
+\begin{lstlisting}
+# Java - essential for nextflow
+module load openjdk-1.8.0_202-b08-gcc-5.4.0-sypwasp 
+
+# Singularity - our go to system for providing software for the example workflow
+module load singularity-3.2.1-gcc-5.4.0-tn5ndnb
 
 
-\subsection{Questions and Answers}
+# If using conda 
+module load miniconda3-4.6.14-gcc-5.4.0-kkzv7zk
+\end{lstlisting}
+\end{steps}
 
-It is useful to maintain the answers to questions together in the same \LaTeX source. By using the
-\verb+\begin{answer} ... \end{answer}+ environment we can have the enclosed answers excluded from
-the trainee's version of the handout while including it in the trainer's version of the handout.
 
-\begin{questions}
-We can ask a simply question to test if the trainee is understanding what they are doing.
-\begin{answer}
-We can maintain the answer along side the questions.
-\end{answer}
 
-\end{questions}
-
-%\subsection{Code For Trainees to Copy/Type}
-%
-%Different people have different opinions on whether it is a good idea to provide the commands for
-%trainees to copy-and-paste. In our experience, there is a huge amount of time wasted by novices
-%typing commands incorrectly or changing filenames which affects commands you might run later on. We
-%also think that it's a good idea to pose regular questions or ask the trainees to modify a previous
-%command. This way you can catch out those whoe are just trying to get ahead by blindly
-%copying-and-pasting.
-%
-%To provide a nicely formatted, copy-and-pastable command, simply wrap it in the
-%\verb+\begin{lstlisting} ... \end{lstlisting}+ environment. Long commands will be wrapped
-%automatically and bash line continuation characters (\textbackslash) inserted where required.
-%
-%\begin{steps}
-%\begin{lstlisting}
-%cd ~/QC
-%fastx_clipper -h
-%fastx_clipper -v -Q 33 -l 20 -M 15 -a GATCGGAAGAGCGGTTCAGCAGGAATGCCGAG -i bad_example.fastq -o bad_example_clipped.fastq
-%\end{lstlisting}
-%\end{steps}
 
