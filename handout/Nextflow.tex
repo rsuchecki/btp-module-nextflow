@@ -861,26 +861,59 @@ The \texttt{.collect()} operator collects all the items emitted by a channel ret
 We now now each task is nicely isolated in a separate sub-directory under \texttt{work}, but how do I find my results? Was it \texttt{work/a7:fc9339a827fb4b34d2408e1c3ee29c} or maybe \texttt{work/3c:8fdf958e96b448ecb83bd7806af382}? This should be handled by applying the \href{https://www.nextflow.io/docs/latest/process.html#publishdir}{\texttt{publishDir} directive}\footnote{\url{https://www.nextflow.io/docs/latest/process.html\#publishdir}} to selected processes. As with other directives, this can be included at the top of the process block or in a configuration file using \href{https://www.nextflow.io/docs/latest/config.html#process-selectors}{process selectors}\footnote{\url{https://www.nextflow.io/docs/latest/config.html\#process-selectors}} to apply the directive to one or more relevant process. To keep things tidy-ish, we define the publishing of the outputs in a separate file 
 which we \texttt{includeConfig 'conf/publish.config'} in \texttt{nextflow.config}. 
 
-\begin{bonus}
-In \texttt{conf/publish.config} we only really use the \texttt{withName} selectors. 
+In \texttt{conf/publish.config} we only really use the \texttt{withName} selectors.
+The alternative \texttt{withLabel} selectors are convenient e.g.\ when outputs of multiple 
+processes are to be gather in one location, in which case we attach the same \texttt{label} to each of those processes.
 
-\end{bonus}
+%\begin{bonus}
+%In \texttt{conf/publish.config} we only really use the \texttt{withName} selectors. 
+%
+%\end{bonus}
 
 \section{Modify/extend the workflow}
 
 \begin{steps}
 
-Option 0\\
-Edit \texttt{main.nf}. Your task is to add a process which will merge the bam files produced by the \texttt{bwa\_mem} process.\\ 
+Edit \texttt{main.nf}. Your task is to add a process which will merge the bam files produced by the \texttt{bwa\_mem} process. 
+\begin{questions}
+How do you ensure that \textbf{all} BAM files end up in the same instance of your process?
+\begin{answer}
+Using the \texttt{.collect()} operator.
+\end{answer}
+Demonstrate your process definition to your facilitator.
 
-Option 1\\
-Edit \texttt{main.nf}. Your task is to add another multiqc process which will summarize all fastqc results together, i.e. those from raw and from the trimmed data. \\
-%additional 2 channels, additional process with .collect
+\begin{answer}
+\begin{lstlisting}
+process bam_merge {
+  input:
+    file('*.bam') from alignedReadsChannel.collect()
 
-Option 2 (advanced) \\
-Add a process which will take all raw reads and all paired reads for a given sample, count the number of raw paired reads and the number of paired reads remaining after the trimming.
+  script:
+  """
+  samtools merge ${params.take}_accessions_megred.bam *.bam
+  """
+}
+\end{lstlisting}
+\end{answer}
+Where can we find the merged BAM file? Can you publish it to a human-readable location? Hint: only declared outputs can be published.
+\end{questions}
 
-%\texttt{groupTuple}?\\
+\begin{bonus}
+\begin{questions}
+Modify your merge process to allow samtools to use 2 cpus with \texttt{--threads 2},
+don't forget to modify your process configuration to request 2 cpus per task.
+\end{questions}
+\end{bonus}
+
+%
+%Option 1\\
+%Edit \texttt{main.nf}. Your task is to add another multiqc process which will summarize all fastqc results together, i.e. those from raw and from the trimmed data. \\
+%%additional 2 channels, additional process with .collect
+%%
+%Option 2 (advanced) \\
+%Add a process which will take all raw reads and all paired reads for a given sample, count the number of raw paired reads and the number of paired reads remaining after the trimming.
+%
+%%\texttt{groupTuple}?\\
 
 \end{steps}
 
@@ -944,45 +977,16 @@ countsChannel2.collectFile(name: 'counts_from_operator.csv', storeDir: params.ou
 \end{answer}
 
 \end{questions}
-\subsection{Key concepts to cover}
 
+%% To make a paragraph appear as a "note" to the reader, simply wrap it in a "note" environment like
+%% this:
+%\begin{note}
+%Note that currently the default behaviour of Nextflow is to re-run an entire workflow 
+%unless \texttt{-resume} option is specified at run-time, in which case a previously 
+%executed process is not re-run if all its inputs remain unchanged.
+%
+%\end{note}
 
-
-\begin{itemize}
- \item channels
- \item operators
- \item processes
- \item directives
-\end{itemize}
-
-\subsection {Under the hood}
-
-
-
-\subsection{Parametrisation}
-
-\begin{itemize}
- \item single dash params
- \item double dash params
- \item environmental variables
-\end{itemize}
-
-% To make a paragraph appear as a "note" to the reader, simply wrap it in a "note" environment like
-% this:
-\begin{note}
-Note that currently the default behaviour of Nextflow is to re-run an entire workflow 
-unless \texttt{-resume} option is specified at run-time, in which case a previously 
-executed process is not re-run if all its inputs remain unchanged.
-
-\end{note}
-
-
-\subsection{additional exercises}
-
-\begin{enumerate}
- \item \texttt{publishDir}
- \item process selectors (optional)
-\end{enumerate}
 
 
 %========================
