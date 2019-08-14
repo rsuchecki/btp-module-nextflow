@@ -439,6 +439,12 @@ This time, in addition to \texttt{main.nf} we have a separate script which downl
 nextflow run setup_data.nf
 \end{lstlisting}
 
+alternatively, you should be able to link to the data on the shared drive
+
+\begin{lstlisting}
+ln -s /shared/data
+\end{lstlisting}
+
 %# or
 %nextflow run csiro-crop-informatics/nextflow-embl-abr-webinar/setup_data.nf -revision workshop
 
@@ -504,7 +510,7 @@ process foo {
   //further code omitted 
 \end{lstlisting}
 
-This is a perfectly valid syntax, which can be convenient particularly during pipeline development, 
+This is a perfectly valid syntax, which can be convenient, particularly during pipeline development, 
 but for more portable workflows it is preferable to keep compute and software environment configuration 
 separate from pipeline logic -- in simple terms not in the workflow script (\texttt{main.nf}).
 
@@ -813,7 +819,7 @@ module av -l 2>&1 | grep conda
 module load miniconda3-4.6.14-gcc-5.4.0-kkzv7zk
 
 # Run with conda
-nextflow run csiro-crop-informatics/nextflow-embl-abr-webinar -revision workshop -profile conda,slurm --take all -resume
+nextflow run main.nf -profile conda,slurm --take all -resume
 
 \end{lstlisting}
 \end{answer}
@@ -821,7 +827,7 @@ nextflow run csiro-crop-informatics/nextflow-embl-abr-webinar -revision workshop
 If you remembered to use \texttt{-resume}, why do you think it appeared to not make a difference?
 
 \begin{answer}
-We have switched from singularity to conda so the software environment has changed. 
+We have switched from singularity to conda so the software environment has changed.  
 \end{answer}
 
 
@@ -839,7 +845,7 @@ We have switched from singularity to conda so the software environment has chang
 \begin{questions}
 Investigate \texttt{main.nf} alongside Figure~\ref{fig:dag}. 
 
-Which \href{https://www.nextflow.io/docs/latest/operator.html}{nextflow operators}, in addition to the previously discussed, are used and for what purposes? 
+Which \href{https://www.nextflow.io/docs/latest/operator.html}{nextflow operators}\footnote{\url{https://www.nextflow.io/docs/latest/operator.html}}, in addition to the previously discussed, are used and for what purposes? 
 
 \begin{answer}
 The \texttt{.combine()} operator outputs all combinations of items emitted by two channels. This results with a downstream process to be executed for each such combination. So e.g. \texttt{bwa\_mem} will be executed for\\ $(reference, accession_1),(reference, accession_2),..,(reference, accession_n)$.
@@ -849,6 +855,16 @@ The \texttt{.collect()} operator collects all the items emitted by a channel ret
 
 \end{questions}
 
+
+\subsection{Workflow outputs}
+
+We now now each task is nicely isolated in a separate sub-directory under \texttt{work}, but how do I find my results? Was it \texttt{work/a7:fc9339a827fb4b34d2408e1c3ee29c} or maybe \texttt{work/3c:8fdf958e96b448ecb83bd7806af382}? This should be handled by applying the \href{https://www.nextflow.io/docs/latest/process.html#publishdir}{\texttt{publishDir} directive}\footnote{\url{https://www.nextflow.io/docs/latest/process.html\#publishdir}} to selected processes. As with other directives, this can be included at the top of the process block or in a configuration file using \href{https://www.nextflow.io/docs/latest/config.html#process-selectors}{process selectors}\footnote{\url{https://www.nextflow.io/docs/latest/config.html\#process-selectors}} to apply the directive to one or more relevant process. To keep things tidy-ish, we define the publishing of the outputs in a separate file 
+which we \texttt{includeConfig 'conf/publish.config'} in \texttt{nextflow.config}. 
+
+\begin{bonus}
+In \texttt{conf/publish.config} we only really use the \texttt{withName} selectors. 
+
+\end{bonus}
 
 \section{Modify/extend the workflow}
 
@@ -868,7 +884,7 @@ Add a process which will take all raw reads and all paired reads for a given sam
 
 \end{steps}
 
-\section{Your own workflow - TODO: replace with variant calling?}
+\section{Your own workflow (TODO: replace with variant calling?)}
 
 It is time to have a go at your own pipeline. 
 Since we have some inputs and configuration files at hand, 
