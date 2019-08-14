@@ -235,12 +235,10 @@ nextflow run hello -revision v1.1
 \begin{figure}[H]
 \centering
 \includegraphics[width=.8\textwidth]{handout/channel-process.png}
-\caption{Nextflow building blocks: Channels and processes. A \texttt{task} is an instance of a process. Tasks are created implicitly, one for each emission (data chunk) from the input channel. Credit: Evan Floden}
+\caption{Nextflow building blocks: a \emph{channel} ``feeding'' a processes. 
+A \emph{task} is an instance of a process. An isolated task is created for each emission (data chunk) from the input channel. Credit: Evan Floden}
 \label{fig:proc-chn}
 \end{figure}
-
-Nextflow facilitates but does not enforce separation of workflow logic from the configuration
-of compute and software environments as well as from other properties of the workflow.
 
 
 \subsection{The main script}
@@ -251,16 +249,19 @@ The main script for the `hello' example is as follows:
 
 \begin{lstlisting}
 #!/usr/bin/env nextflow
-echo true 
+echo true
 
 cheers = Channel.from 'Bonjour', 'Ciao', 'Hello', 'Hola'
 
+//setting default value, to be modified at runtime 
+params.world = 'world' 
+
 process sayHello {
-  input: 
+  input:
     val x from cheers
   script:
     """
-    echo '$x world!'
+    echo '$x $params.world!'
     """
 }
 \end{lstlisting}
@@ -308,6 +309,9 @@ echo true
 
 cheers = Channel.from 'Bonjour', 'Ciao', 'Hello', 'Hola'
 
+//setting default value, to be modified at runtime 
+params.world = 'world' 
+
 process sayHello {
   executor 'slurm'
 
@@ -315,7 +319,7 @@ process sayHello {
     val x from cheers
   script:
     """
-    echo "$x world from \$HOSTNAME on Slurm!"
+    echo "$x $params.world from \$HOSTNAME on Slurm!"
     """
 }
 \end{lstlisting}
@@ -323,8 +327,8 @@ process sayHello {
 You might also have noticed that we have modified the script block so that the messages printed to the terminal include the name of the compute node on which a given task is executed. 
 
 \begin{warning}
-Note the difference between how nextflow and bash variables are included in the script block.
-There are alternative ways of passing scripts for execution by nextflow processes which may be more convenient if your script contains multiple special characters.
+Note the difference between how nextflow variables (\texttt{\$x,\$params.world}) and bash variables (\texttt{\$HOSTNAME})are included in the script block.
+There are alternative ways of including variables in scripts for execution by nextflow processes which may be more convenient if your script contains multiple special characters.
 \end{warning}
 
 
@@ -334,6 +338,10 @@ When the pipeline is launched with the \texttt{-resume} option,
 any attempt to execute already executed process with the same inputs,
 will cause the process execution to be skipped, 
 producing the stored data as the output.
+
+In this toy example we do not specify any outputs 
+but the `hello` messages printed to the terminal 
+reflect this behaviour.
 
 %The caching feature generates a unique key by indexing the process script and inputs. 
 %This key is used to identify the outputs produced by the process execution.
@@ -351,15 +359,18 @@ even though inputs have not changed.
 
 \url{https://www.nextflow.io/docs/latest/process.html#cache}
 
-\subsection{Hello params}
+\subsection{Hello command line options}
 
-Single-dashed parameter names are reserved for nextflow engine (\texttt{-resume, -revision, -ansi-log false} etc). 
-The double-dashed params are all yours and you are free to use them for your workflow. 
-When you \texttt{nextflow run ...} a workflow with say \texttt{--foo bar}, 
-the variable \texttt{params.foo} will evaluate to the value `bar'.
+Single-dashed options are reserved for nextflow engine (\texttt{-resume, -revision, -ansi-log false} etc). 
+The double-dashed options are all yours and you are free to use them for your workflow. 
+When you \texttt{nextflow run some\_script.nf --foo bar}, 
+the value of the parameter (`bar')
+will be accessible in \texttt{main.nf} as \texttt{params.foo}
+and within a script block as \texttt{\$params.foo}.
 
-In the `hello' example we use \texttt{params.world}, so lets try to use an alternative string.
 \begin{steps}
+In the `hello' example we use \texttt{params.world} which by default is set to `word', so lets try to use an alternative string.
+
 \begin{lstlisting}
 nextflow run rsuchecki/hello -revision slurm --world Mundo
 \end{lstlisting}
@@ -367,7 +378,27 @@ nextflow run rsuchecki/hello -revision slurm --world Mundo
 
 \subsection{Goodbye Hello}
 
-Nextflow looks for workflow configuration files, primarily in \texttt{nextflow.config} file, and additional config files can be included. Unsurprisingly the `hello' example does not require much configuration, so let's look at a slightly more practical workflow.
+
+Nextflow facilitates but does not enforce separation of workflow logic from the configuration
+of compute and software environments as well as from other properties of the workflow.  
+As such, you \textit{could} get by developing nextflow workflows without worrying about that 
+aspect -- but you would be missing a lot in terms of flexibility, extensibility, portability and more
+
+Nextflow looks for workflow configuration primarily in \texttt{nextflow.config} file, and additional config files can be included. Unsurprisingly the `hello' example does not require much configuration,
+we would also like to crunch some real, albeit small, data.
+
+
+\begin{steps}
+\\This is mostly symbolic
+\begin{lstlisting}
+nextflow drop rsuchecki/hello
+\end{lstlisting}
+\end{steps}
+
+
+Let's have a play with a slightly more practical workflow.
+
+
 
 
 \newpage
@@ -375,7 +406,7 @@ Nextflow looks for workflow configuration files, primarily in \texttt{nextflow.c
 \section{Example workflow}
 
 We are going to work with an example Nextflow workflow to demonstrate how they are run, 
-improve your understanding of \emph{processes} and \emph{channels} and finally introduce \\emph{operators}, which will allow you to shape and direct data flowing through the channels. 
+improve your understanding of \emph{processes} and \emph{channels} and finally introduce\ \emph{operators}, which are applied to channels to shape and direct flowing data.
 
 
 This example workflow consists of the following steps:
@@ -401,7 +432,7 @@ git checkout noslurm
 git branch
 \end{lstlisting}
 
-This time, in addition to \texttt{main.nf} we have a separate script which downloads the required data sets, which include a small reference FASTA file and 16 pairs of FASTQ files, each for a different bread wheat accession.
+This time, in addition to \texttt{main.nf} we have a separate script which downloads the required data sets, which include a small reference FASTA file and 16 pairs of FASTQ files, each for a different bread wheat accession. 
 
 
 \begin{lstlisting}
@@ -422,14 +453,8 @@ This is expected to fail.\\
 Unless all the software required by the pipeline is available on the \texttt{\$PATH},
 which we don't expect, the pipeline should terminate with an error.
 The output information may help you identify the cause. 
-Spend a few minutes relating the error message content to the relevant section of the main script (\texttt{main.nf}). 
+Try to relate the error message to the relevant section of the main script (\texttt{main.nf}). 
 \end{warning}
-
-
-%#or 
-%nextflow run csiro-crop-informatics/nextflow-embl-abr-webinar -revision workshop
-
-
 \end{steps}
 
 \begin{questions}
@@ -481,7 +506,7 @@ process foo {
 
 This is a perfectly valid syntax, which can be convenient particularly during pipeline development, 
 but for more portable workflows it is preferable to keep compute and software environment configuration 
-separate from pipeline logic - i.e.\ not in the workflow script (\texttt{main.nf}).
+separate from pipeline logic -- in simple terms not in the workflow script (\texttt{main.nf}).
 
 \subsection{The config file(s) and profiles}
 
