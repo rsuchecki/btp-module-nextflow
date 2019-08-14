@@ -426,6 +426,8 @@ This example workflow consists of the following steps:
 Although not necessary for simply running the pipeline, in the training context it makes sense to start by cloning the workflow repository and moving to the directory.
 
 \begin{lstlisting}
+mkdir -p /shared/${USER}/nextflow-tutorial
+cd /shared/${USER}/nextflow-tutorial
 git clone https://github.com/csiro-crop-informatics/nextflow-embl-abr-webinar.git example_workflow
 cd example_workflow
 git checkout noslurm
