@@ -121,7 +121,7 @@ module load openjdk-1.8.0_202-b08-gcc-5.4.0-sypwasp
 curl -s https://get.nextflow.io | bash
 
 # You should now be able to run it
-./nextflow help
+./nextflow -version
 \end{lstlisting}
 \end{steps}
 
@@ -141,85 +141,140 @@ mv ./nextflow $HOME/bin
 
 You should now be able to run \texttt{nextflow} without specifying the location of the binary.
 
-Let's see if it works by running a script which is nextflow's take on `hello world'.
-
-\subsection{Hello (nextflow) world!}
+For the duration of the workshop we may fix the version of nextflow we will use, 
+and also opt for simpler but more verbose terminal logging 
+which may be more useful when you get started with Nextflow 
+or when you start developing a new pipeline.
 
 \begin{steps}
 \begin{lstlisting}
-nextflow run rsuchecki/hello
+export NXF_VER=19.04.0
+export NXF_ANSI_LOG=false
+
+# now try
+nextflow -version
 \end{lstlisting}
 \end{steps}
 
-Nextflow will pull the \texttt{rsuchecki/hello} GitHub repository and run its main script.\\
+To revert to the default logging you can either change the value of the environmental variable to \texttt{false} or use \texttt{-ansi-log false} at run time.
 
-\begin{note}
-We are relying on nextflow's integration with git and git registries. 
-The \textbf{alternative} would be to
-\begin{verbatim}
-git clone https://github.com/rsuchecki/hello.git
-nextflow run hello/main.nf
-\end{verbatim}
-In which case the location of the cloned repository will be different to the one used by nextflow.
-You will also not have access to nextflow-git integration functionality. 
-\end{note}
 
-\begin{questions}
-Where do we find the local copy of \texttt{hello}? Hint: try \texttt{nextflow} commands related to pipeline sharing, such as \texttt{list} and \texttt{info}.
-\begin{answer}
+\newpage
+
+
+\section{Running Nextflow}
+
+We start with Nextflow take on Hellow world.
+
+\subsection{Hello (nextflow) world!}
+
+
+%To get started with Nextflow, we will create \texttt{main.nf} script file containing a single process
+%which specifies how to create an output file.
+
+
+Set-up a working directory for this task:
+
+
+\begin{steps}
 \begin{lstlisting}
-# List local clones of remote repositories
-nextflow list
-# Get detailed info about a repository 
-nextflow info hello #or nextflow rsuchecki/hello
+mkdir -p /shared/${USER}/nextflow
+cd /shared/${USER}/nextflow
+\end{lstlisting}
+\end{steps}
+
+Clone the hello-world example and go to its directory
+
+\begin{steps}
+\begin{lstlisting}
+git clone https://github.com/rsuchecki/hello.git
+cd hello
 \end{lstlisting}
 
-\begin{verbatim}
- project name: rsuchecki/hello
- repository  : https://github.com/rsuchecki/hello
- local path  : /home/rad/.nextflow/assets/rsuchecki/hello
- main script : main.nf
- revisions   : 
- * master (default)
-   mybranch
-   slurm
-   testing
-   v1.1 [t]
-   v1.2 [t]
-\end{verbatim}
+Feel free to investigate the content of the \texttt{main.nf} script, but we will have a closer look further on.
+
+\begin{lstlisting}
+cat main.nf
+\end{lstlisting}
+
+Run the \texttt{main.nf} script and observe the terminal output
+
+\begin{lstlisting}
+nextflow run main.nf 
+\end{lstlisting}
+
+
+Run the hello script again a few times and observe the effect of using the \texttt{-resume} flag
+
+\begin{lstlisting}
+nextflow run main.nf 
+nextflow run main.nf -resume
+\end{lstlisting}
+\end{steps}
+
+You may run the hello script a few more times with and without \texttt{-resume}.
+
+\begin{questions}
+How does the output differ depending on whether the \texttt{-resume} flag is used?
+\begin{answer}
+With \texttt{-resume}, Nextflow will not re-run the tasks and report them as \texttt{cached}. 
 \end{answer}
 \end{questions}
 
+\newpage
 
-For now, we are mostly interested in the local path to the repository, the file name of the main script 
-and its contents, which we will discuss next.
+\subsection{Hello command line options}
+
+Single-dashed options are reserved for Nextflow engine (\texttt{-resume, -ansi-log false} etc). 
+The double-dashed options are all yours and you are free to use them for your workflow. 
+When you \texttt{nextflow run some\_script.nf --foo bar}, 
+the value of the parameter (`bar')
+will be accessible in \texttt{main.nf} as \texttt{params.foo}
+and within a script block as \texttt{\$params.foo}.
 
 
-\begin{bonus}
-While waiting for others to catch up, why not have a look into how you would go about pulling and removing  
-local clones of remote repositories using nextflow.
-\begin{answer}
+
+\begin{steps}
+
+In the `hello' example we use the variable \texttt{params.universe} which is by default set to `World', so lets try to use an alternative string.
+
 \begin{lstlisting}
-# remove local copy of rsuchecki/hello
-nextflow drop hello
-# pull rsuchecki/hello from remote without running the main script
-nextflow pull rsuchecki/hello
+nextflow run main.nf -resume --universe Mundo 
 \end{lstlisting}
-\end{answer}
-\end{bonus}
+\end{steps}
 
-\begin{bonus}
-What revisions (git branches or tags) are available for \texttt{nextflow-io/hello}?
-How would you run a specific revision? 
+\begin{questions}
+What effect did the \texttt{-resume} flag had this time?
 \begin{answer}
-\begin{lstlisting}
-# Available revisions 
-nextflow info hello
-# Using -r/-revision, pointing to a listed tag or branch
-nextflow run hello -revision v1.1
-\end{lstlisting}
+The use of \texttt{-resume} was inconsequential as the process \texttt{sayHello}
+was never previously executed with input that includes the value of \texttt{params.universe} 
+set to \texttt{`Mundo'} rather than \texttt{`World'}
 \end{answer}
-\end{bonus}
+\end{questions}
+
+\begin{note}
+When the pipeline is launched with the \texttt{-resume} option, 
+any attempt to execute previously executed process with the same inputs,
+will cause the process execution to be skipped, 
+producing the previously stored outputs.
+
+In this toy example we do not specify any outputs files
+but the `hello` messages printed to the terminal 
+reflect this behaviour.
+
+
+%The caching feature generates a unique key by indexing the process script and inputs. 
+%This key is used to identify the outputs produced by the process execution.
+
+To avoid unintentionally re-computing long running tasks you may consider 
+always running your pipelines with \texttt{-resume} and only omitting it
+on rare occasions when you want to re-compute the results
+even though inputs have not changed. 
+
+\url{https://www.nextflow.io/docs/latest/process.html#cache}
+
+\end{note}
+\newpage
 
 \section{Nextflow basics}
 
@@ -236,12 +291,12 @@ nextflow run hello -revision v1.1
 \centering
 \includegraphics[width=.8\textwidth]{handout/channel-process.png}
 \caption{Nextflow building blocks: a \emph{channel} ``feeding'' a processes. 
-A \emph{task} is an instance of a process. An isolated task is created for each emission (data chunk) from the input channel. Credit: Evan Floden}
+A \emph{task} is an instance of a process. An isolated task is created for each emission (data chunk) from the input channel. \emph{Credit: Evan Floden}}
 \label{fig:proc-chn}
 \end{figure}
 
 
-\subsection{The main script}
+\subsection{The script}
 
 A nextflow script file name can be anything but in most cases it is best to stick to the default \texttt{main.nf}. 
 The main script for the `hello' example is as follows:
@@ -249,43 +304,43 @@ The main script for the `hello' example is as follows:
 
 \begin{lstlisting}
 #!/usr/bin/env nextflow
-echo true
 
-cheers = Channel.from 'Bonjour', 'Ciao', 'Hello', 'Hola'
+cheers = Channel.from 'Bonjour', 'Ciao', 'Hello', 'Hola', 'Czesc'
 
-//setting default value, to be modified at runtime 
-params.world = 'world' 
+params.universe = 'World' //setting default value, modify at runtime with e.g.: --world Mundo
 
 process sayHello {
+  echo true
+
   input:
-    val x from cheers
+    val cheer from cheers
   script:
     """
-    echo '$x $params.world!'
+    echo "$cheer $params.universe!"
     """
 }
 \end{lstlisting}
 
 
-
 A channel called \texttt{cheers} is created and emits each of the listed strings separately. 
-A separate instance of the process \texttt{sayHello} is executed for each emission. 
+A separate instance of the process \texttt{sayHello}, i.e.\ a \emph{task}, is executed for each emission. 
 
 \begin{note}
-The contenet of the above script can be broken down as follows:
+The content of the above script can be broken down as follows:
 \begin{itemize}
   \item The shebang line (line 1) is optional.
-  \item Setting \texttt{echo true} will output \texttt{stdout} of (every) process to the terminal - not advised for real world applications.
   \item \texttt{Channel.from(some\_list)} creates a channel emitting the list elements one by one.
-  \item \href{https://www.nextflow.io/docs/latest/process.html}{Process} definition (lines 6-13)
+  \item \texttt{params.universe = `World'} sets the default value of the command-line accessible option
+  \item \href{https://www.nextflow.io/docs/latest/process.html}{Process} definition (lines 7-16)
   \begin{itemize}
-    \item Input block (lines 7-8)
-    \item Script block (lines 9-12)
+    \item Directives are placed at the top, directive \texttt{echo} controls whether \texttt{stdout} of the process is redirected to your terminal
+    \item Input block (lines 10-11) 
+    \item Script block (lines 12-15)
   \end{itemize}
-  \item The \texttt{\$x} in the script block is a nextflow variable local to the process, not a bash variable.
+  \item The \texttt{\$cheer} in the script block is a nextflow variable local to the process, \textbf{not} a bash variable.
   \item Indentation is inconsequential. 
 \end{itemize}
-In addition \href{https://www.nextflow.io/docs/latest/process.html#directives}{process directives} could be inserted above the input block.
+
 \end{note}
 
 
@@ -294,87 +349,62 @@ In addition \href{https://www.nextflow.io/docs/latest/process.html#directives}{p
 The nextflow hello example shown us how the \texttt{sayHello} process was executed separately for each input string as a separate \emph{task}, but all the tasks were executed locally on our cluster's head node. 
 We would now like each task to be submitted as a batch job for execution on one of the compute nodes.
 
+Thanks to Nextflow's out-of-the-box support for different compute environments, 
+it only requires changing the process executor from the default \texttt{local} to \texttt{slurm}.
+This could be done via configuration files (more about that later) or in the process definition. 
+However, for our simple use-case it should suffice to use the environmental variable.
+
 \begin{steps}
 \begin{lstlisting}
-nextflow run rsuchecki/hello -revision slurm
+NXF_EXECUTOR=slurm nextflow run main.nf
 \end{lstlisting}
 \end{steps}
 
-This is the modified version of the \texttt{main.nf} script. 
-Submission to Slurm was achieved by adding \texttt{executor 'slurm'} directive to the process definition.
+\begin{questions}
+Play spot-the-difference -- how can you tell if the tasks were submitted on the cluster?
+\begin{answer}
+The terminal output should include the line \texttt{executor >  slurm (5)} (or similar), 
+but may differ depending on the version of Nextflow and whether ANSI logging is switched on or off.
+\end{answer}
+\end{questions}
 
-\begin{lstlisting}
-#!/usr/bin/env nextflow
-echo true
+\begin{steps}
+Let's modify our script slightly to make it easier to see how processes are executed.
+Replace the single line within the script block
 
-cheers = Channel.from 'Bonjour', 'Ciao', 'Hello', 'Hola'
+\begin{verbatim}
+echo "$cheer $params.universe!"
+\end{verbatim}
 
-//setting default value, to be modified at runtime 
-params.world = 'world' 
+with the following
 
-process sayHello {
-  executor 'slurm'
+\begin{verbatim}
+echo "$cheer ${params.universe}!  -- from ${task.executor} \$HOSTNAME"
+\end{verbatim}
+\end{steps}
 
-  input:
-    val x from cheers
-  script:
-    """
-    echo "$x $params.world from \$HOSTNAME on Slurm!"
-    """
-}
-\end{lstlisting}
-
-You might also have noticed that we have modified the script block so that the messages printed to the terminal include the name of the compute node on which a given task is executed. 
 
 \begin{warning}
-Note the difference between how nextflow variables (\texttt{\$x,\$params.world}) and bash variables (\texttt{\$HOSTNAME})are included in the script block.
-There are alternative ways of including variables in scripts for execution by nextflow processes which may be more convenient if your script contains multiple special characters.
+Note the difference between how nextflow variables (\texttt{\$x,\$params.universe}) and bash variables (\texttt{\$HOSTNAME})are included in the script block.
+There are alternative ways of including variables in scripts for execution by nextflow processes which may be more convenient if your script contains multiple special characters. See for example \href{https://www.nextflow.io/docs/latest/process.html#process-shell}{Nextflow documentation of the alternative \texttt{shell} block}\footnote{\url{https://www.nextflow.io/docs/latest/process.html\#process-shell}}. 
 \end{warning}
 
-
-\subsection{Hello task caching!}
-
-When the pipeline is launched with the \texttt{-resume} option, 
-any attempt to execute already executed process with the same inputs,
-will cause the process execution to be skipped, 
-producing the stored data as the output.
-
-In this toy example we do not specify any outputs 
-but the `hello` messages printed to the terminal 
-reflect this behaviour.
-
-%The caching feature generates a unique key by indexing the process script and inputs. 
-%This key is used to identify the outputs produced by the process execution.
-
 \begin{steps}
+
+Now re-run... 
 \begin{lstlisting}
-nextflow run rsuchecki/hello -revision slurm -resume
+NXF_EXECUTOR=slurm nextflow run main.nf
 \end{lstlisting}
 \end{steps}
 
-To avoid unintentionally re-computing long running tasks you may consider 
-always running your pipelines with \texttt{-resume} and only omitting it
-on rare occasions when you want to re-compute the results
-even though inputs have not changed. 
+The messages printed to the terminal should now include the name of the compute node on which a given task is executed.
 
-\url{https://www.nextflow.io/docs/latest/process.html#cache}
 
-\subsection{Hello command line options}
 
-Single-dashed options are reserved for nextflow engine (\texttt{-resume, -revision, -ansi-log false} etc). 
-The double-dashed options are all yours and you are free to use them for your workflow. 
-When you \texttt{nextflow run some\_script.nf --foo bar}, 
-the value of the parameter (`bar')
-will be accessible in \texttt{main.nf} as \texttt{params.foo}
-and within a script block as \texttt{\$params.foo}.
 
-\begin{steps}
-In the `hello' example we use \texttt{params.world} which by default is set to `word', so lets try to use an alternative string.
 
-\begin{lstlisting}
-nextflow run rsuchecki/hello -revision slurm --world Mundo
-\end{lstlisting}
-\end{steps}
+
+
 
 \subsection{Goodbye Hello}
 
@@ -388,22 +418,25 @@ Nextflow looks for workflow configuration primarily in \texttt{nextflow.config} 
 we would also like to crunch some real, albeit small, data.
 
 
-\begin{steps}
-\\This is mostly symbolic
-\begin{lstlisting}
-nextflow drop rsuchecki/hello
-\end{lstlisting}
-\end{steps}
-
-
 Let's have a play with a slightly more practical workflow.
-
-
 
 
 \newpage
 
-\section{Example workflow}
+
+\section{Reimplementing a workflow in Nextflow}
+
+In the Snakemake section of our tutorial, we include an example bash ``pipeline'', which 
+includes a number of common tasks wrapped in a single 
+\href{https://github.com/UofABioinformaticsHub/snakemake_template/blob/tutorial/analysis.sh}{bash script}\footnote{\url{https://github.com/UofABioinformaticsHub/snakemake_template/blob/tutorial/analysis.sh}}.
+We have already covered a number of limitation of that and similar approaches, 
+so without further delay we will cover steps to re-implementing that workflow 
+in Nextflow. 
+
+
+
+
+
 
 We are going to work with an example Nextflow workflow to demonstrate how they are run, 
 improve your understanding of \emph{processes} and \emph{channels} and finally introduce\ \emph{operators}, which are applied to channels to shape and direct flowing data.
@@ -426,13 +459,24 @@ This example workflow consists of the following steps:
 Although not necessary for simply running the pipeline, in the training context it makes sense to start by cloning the workflow repository and moving to the directory.
 
 \begin{lstlisting}
-mkdir -p /shared/${USER}/nextflow-tutorial
-cd /shared/${USER}/nextflow-tutorial
+mkdir -p /shared/${USER}/nextflow
+cd /shared/${USER}/nextflow
 git clone https://github.com/csiro-crop-informatics/nextflow-embl-abr-webinar.git example_workflow
 cd example_workflow
 git checkout noslurm
 git branch
 \end{lstlisting}
+
+To avoid all participants pulling a container from a remote registry, we will link to a local copy 
+
+\begin{lstlisting}
+mkdir -p singularity-images
+ln 
+cd /shared/${USER}/nextflow-tutorial
+\end{lstlisting}
+
+
+
 
 This time, in addition to \texttt{main.nf} we have a separate script which downloads the required data sets, which include a small reference FASTA file and 16 pairs of FASTQ files, each for a different bread wheat accession. 
 
