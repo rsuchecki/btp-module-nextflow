@@ -417,7 +417,6 @@ aspect -- but you would be missing a lot in terms of flexibility, extensibility,
 Nextflow looks for workflow configuration primarily in \texttt{nextflow.config} file, and additional config files can be included. Unsurprisingly the `hello' example does not require much configuration,
 we would also like to crunch some real, albeit small, data.
 
-
 Let's have a play with a slightly more practical workflow.
 
 
@@ -434,90 +433,244 @@ so without further delay we will cover steps to re-implementing that workflow
 in Nextflow. 
 
 
-
-
-
-
-We are going to work with an example Nextflow workflow to demonstrate how they are run, 
-improve your understanding of \emph{processes} and \emph{channels} and finally introduce\ \emph{operators}, which are applied to channels to shape and direct flowing data.
-
-
-This example workflow consists of the following steps:
-
 \begin{itemize}
-  \item Running FastQC across the raw reads
-  \item Aggregating the raw read FastQC reports using MultiQC
-  \item Performing adapter, quality, and read length filtering using Trimmomatic
-  \item Running FastQC across the QC'd reads
-  \item Aggregating the QC read FastQC reports using MultiQC
-  \item Indexing the reference FASTA file
-  \item Performing a \texttt{bwa-mem} read alignment
+  \item Run FastQC across all the raw read files
+  \item Adapter, quality, and read length filtering using Trimmomatic
+  \item Aggregating FastQC reports from the raw reads using MultiQC
+  \item Index the reference FASTA file
+  \item Perform a \texttt{bwa-mem} read alignment
 \end{itemize}
 
 
+
+We will walk you through the steps of reimplementing the first few steps of the above script 
+into a Nextflow workflow. Along the way, we will introduce the core concepts of Nextflow 
+and then ask you to reimplement the \texttt{bwa-mem} step yourselves. 
+For those working quickly, you will have the opportunity to reimplement the \texttt{multiqc} step. 
+This will provide you with a foundation for you to be able to port your own workflows into Nextflow. 
+
+
+%------------------------
+\subsection{Getting the code}
+%------------------------
+
 \begin{steps}
-Although not necessary for simply running the pipeline, in the training context it makes sense to start by cloning the workflow repository and moving to the directory.
+Start by cloning the workflow repository and moving to the directory.
 
 \begin{lstlisting}
 mkdir -p /shared/${USER}/nextflow
 cd /shared/${USER}/nextflow
 git clone https://github.com/csiro-crop-informatics/nextflow-embl-abr-webinar.git example_workflow
 cd example_workflow
-git checkout noslurm
-git branch
+git checkout workshop
+\end{lstlisting}
+\end{steps}
+
+%------------------------
+\subsection{Getting the Data}
+%------------------------
+
+We have provided you with some real whole genome sequencing (WGS) data from bread wheat together with a small chunk of the wheat genome.
+The data set is small enough for each step in the analysis to take less than a couple of minutes to run. 
+We have a copy of this data available locally to save on bandwidth, time and the possibility we are detected as a DDoS attack on some poor remote server!
+
+\begin{steps}
+\begin{lstlisting}
+# Get a copy of the data
+cp --recursive \
+  /shared/data/ \
+  ./
+
+# Have a look at what files we'd provided
+tree data
+\end{lstlisting}
+\end{steps}
+
+
+
+%------------------------
+\subsection{Implementing BWA Indexing}
+%------------------------
+
+
+In this section you will learn how to
+
+\begin{itemize}
+ \item  Read an input file into a NF \emph{channel}
+ \item  Connect the created channel to NF \emph{process} input
+ \item  Port an existing bash snippet into NF \emph{process} script block
+ \item  Group \emph{process} output files and values in a \texttt{set} to be emitted through an output channel
+\end{itemize}
+
+In the original bash script this task consists of a simple call to \texttt{bwa} with 
+the input fie name hard-coded. % also used for the prefix of the output filenames.
+
+%bwa index -p references/reference.fasta.gz -a bwtsw references/reference.fasta.gz
+\begin{lstlisting}
+bwa index -a bwtsw references/reference.fasta.gz
 \end{lstlisting}
 
-To avoid all participants pulling a container from a remote registry, we will link to a local copy 
+
+ 
+We start by creating a channel which pass the reference file to our indexing process. 
 
 \begin{lstlisting}
-mkdir -p singularity-images
-ln 
-cd /shared/${USER}/nextflow-tutorial
+Channel.fromPath('data/references/reference.fasta.gz')
 \end{lstlisting}
 
+%While developing, you could use the \texttt{.view()} operator for a sneak-peak 
+%at what items are emitted by a given channel.
+%
+%\begin{lstlisting}
+%Channel.fromPath('data/references/reference.fasta.gz').view()
+%\end{lstlisting}
 
-
-
-This time, in addition to \texttt{main.nf} we have a separate script which downloads the required data sets, which include a small reference FASTA file and 16 pairs of FASTQ files, each for a different bread wheat accession. 
-
+To be able to access the channel, you normally need to assign it to a variable.
 
 \begin{lstlisting}
-nextflow run setup_data.nf
+referencesChannel = Channel.fromPath('data/references/reference.fasta.gz') 
 \end{lstlisting}
 
-%# or
-%nextflow run csiro-crop-informatics/nextflow-embl-abr-webinar/setup_data.nf -revision workshop
+But since we often chain multiple operations, for example \\
+\texttt{oneChannel.filter(it.size > n).combine(anotherChannel).collect()},\\ 
+the following syntax is preferred.
 
-If successful, we could now try to run the workflow...
+\begin{lstlisting}
+Channel.fromPath('data/references/reference.fasta.gz').set { referencesChannel } 
+\end{lstlisting}
 
+We can now move on to defining the process which will \emph{consume} the \texttt{referencesChannel}.
+
+The bare-minimum would probably be a process definition with 
+* an \texttt{input} block
+* a \texttt{script} block
+
+\begin{lstlisting}
+process bwa_index {
+  input:
+    file(ref) from referencesChannel
+
+  script:
+  """
+  bwa index -a bwtsw ${ref}
+  """
+}
+\end{lstlisting}
+
+
+
+%\begin{lstlisting}
+%#!/usr/bin/env nextflow
+%
+%Channel.fromPath('data/references/reference.fasta.gz').set{ referencesChannel }
+%
+%process bwa_index {
+%  input:
+%    file(ref) from referencesChannel
+%
+%  output:
+%    set val("${ref}"), file("*") into indexChannel 
+%    
+%  script:
+%  """
+%  bwa index -a bwtsw ${ref}
+%  """
+%}
+%\end{lstlisting}
+
+That should be sufficient to run the indexing, but given that we want to use the generated index, 
+we also need to define the outputs for the process. The expected output files are:
+
+\begin{lstlisting}
+reference.fasta.gz.amb
+reference.fasta.gz.ann
+reference.fasta.gz.bwt
+reference.fasta.gz.pac
+reference.fasta.gz.sa
+\end{lstlisting}
+
+To declare these as outputs we could 
+
+\begin{lstlisting}
+  output:
+    file("*") into indexChannel 
+\end{lstlisting}
+
+We could be more explicit and declare that outputs are all (non-input)
+files sharing a prefix
+
+\begin{lstlisting}
+  output:
+    file("${ref}.*") into indexChannel 
+\end{lstlisting}
+
+or even painstakingly list all the expected files...
+%and group them in a \emph{set} (in other words a tuple - an ordered list of elements).
+%
+%\begin{lstlisting}
+%  output:
+%    set file('reference.fasta.gz.amb'), file(reference.fasta.gz.ann), file('reference.fasta.gz.bwt'), file(reference.fasta.gz.pac), file(reference.fasta.gz.sa) into indexChannel 
+%\end{lstlisting}
+%
+%
+%However this is very verbose and 
+However, one of the great things about Nextflow is that thanks to process isolation, 
+you typically don't have to pay much attention to input/output file names 
+unless a tool you use have some specific requirements in this regard.
+For example, to run \texttt{bwa} alignment later on, we will need to pass it 
+the common prefix of the names of the index files. 
+
+In this case rather then simply outputting the index files,
+and than parsing the prefix out of the file name(s), 
+we opt to output our reference file name alongside the generated index file.
+To do that in a single emission we wrap these in a a \emph{set} 
+(in other words a tuple - an ordered list of elements).
+
+\begin{lstlisting}
+  output:
+    set val("${ref}"), file("*") into indexChannel 
+\end{lstlisting}
+
+The emitted set will consist of two elements 
+\begin{itemize}
+\item The reference file name (String) 
+\item The list of index files (Not just file names -- Objects of class \texttt{java.nio.file.Path}).
+\end{itemize}
+
+
+\subsection{Running the workflow (stub)}
+
+
+\begin{steps}
 \begin{lstlisting}
 nextflow run main.nf
 \end{lstlisting}
+\end{steps}
 
 \begin{warning}
 This is expected to fail.\\
-Unless all the software required by the pipeline is available on the \texttt{\$PATH},
+Unless all the software required by the pipeline (in this case - just \texttt{bwa}) is available on the \texttt{\$PATH},
 which we don't expect, the pipeline should terminate with an error.
 The output information may help you identify the cause. 
 Try to relate the error message to the relevant section of the main script (\texttt{main.nf}). 
 \end{warning}
-\end{steps}
+
 
 \begin{questions}
-Which process has failed?
-What was the underlying cause?
+Identify the exact \texttt{error}. 
 \begin{answer}
-The cause was likely ``\texttt{command not found}'' and it may have been any of the processes for which the software tool is not available.
-Example:
+The cause was likely ``\texttt{.command.sh: line 2: bwa: command not found}''. Example:
+
 \begin{lstlisting}
-Error executing process > 'fastqc_raw (Xiaoyan)'
+[68/31190c] Submitted process > bwa_index (1)
+ERROR ~ Error executing process > 'bwa_index (1)'
 
 Caused by:
-  Process `fastqc_raw (Xiaoyan)` terminated with an error exit status (127)
+  Process `bwa_index (1)` terminated with an error exit status (127)
 
 Command executed:
 
-  fastqc  --quiet --threads 1 *
+  bwa index -a bwtsw reference.fasta.gz
 
 Command exit status:
   127
@@ -526,27 +679,25 @@ Command output:
   (empty)
 
 Command error:
-  .command.sh: line 2: fastqc: command not found
+  .command.sh: line 2: bwa: command not found
 
-Work dir:  /tmp/nextflow-embl-abr-webinar/work/15/505ea816d2411e68ea253ee126c181
+Work dir:
+  /shared/training001/nextflow/example_workflow/work/68/31190cc4a8d0785dba721a3caebc46
+
+Tip: you can try to figure out what's wrong by changing to the process work dir and showing the script file named `.command.sh`
+
+ -- Check '.nextflow.log' file for details
 \end{lstlisting}
 \end{answer}
 \end{questions}
 
 
-There are two main issues with executing this workflow as is, 
-\begin{enumerate}
- \item Third-party software tools have not been made available to the workflow.
- \item We are trying to run the entire workflow on the cluster's head node.
-\end{enumerate}
-
-There are different ways in which these issues could be addressed, for example using process 
-\emph{directives} at the top of each process definition. 
-Depending on your cluster configuration this could be for example:
+There are different ways in which we could ensure that the relevant software is available, for example using process 
+\emph{directives} at the top of each process definition. We could also use the opportunity to change the executor from local to Slurm, for example:
 \begin{lstlisting}
 process foo {
-  executor 'slurm' 
   module 'samtools/1.9' 
+    executor 'slurm' 
   //further code omitted 
 \end{lstlisting}
 
@@ -583,19 +734,32 @@ This is however still a bit rigid.
 \item If developing directly in the cluster environment, you may prefer your quick test runs to happen either on the head node or in an interactive session you are using, rather than always having jobs submitted to sit in the always-busy cluster queue.
 \end{itemize}
 
-
-
 Nextflow enables the definition of \emph{profiles} which make it easy to run a workflow 
 with different configuration settings, including, but not limited to executors and software environment.
 
-For our pipeline we have defined several \emph{profiles}, which allow us to execute the logic in \texttt{main.nf} while providing the required software either by creating a \texttt{conda} environment or by using Docker of Singularity containers where the conda environment has already been captured. 
+For our pipeline we have defined several \emph{profiles}, which allow us to execute the logic from \texttt{main.nf} while providing the required software either by creating a \texttt{conda} environment or by using Docker of Singularity containers where the conda environment has already been captured. 
 
 \subsubsection{Relevant profiles}
 
 
-Identify the profile definitions in \texttt{nextflow config}. The ones most immediately relevant are:
+Have a look inside \texttt{nextflow.config}, and locate the process definitions
+
+\begin{steps}
+\begin{lstlisting}
+less nextflow.config
+\end{lstlisting}
+\end{steps}
+
+The ones most immediately relevant are:
+
 \begin{lstlisting}
 profiles {
+  //EXECUTORS
+  slurm {
+    process {
+      executor = 'slurm'
+    }
+  }
   //SOFTWARE
   conda {
     process {
@@ -604,41 +768,31 @@ profiles {
   }
   singularity {
     process {
-      container = 'shub://csiro-crop-informatics/nextflow-embl-abr-webinar' 
+      container = '/shared/.singularity/nextflow-embl-abr-webinar.simg' 
     }
     singularity {
       enabled = true
       autoMounts = true
-      cacheDir = "singularity-images"  
     }
   }
 }
 \end{lstlisting}
 
 
-
-As you can see, Nextflow makes it really easy to %use different executors and the configuration of 
-define software environment via Singularity or Conda\footnote{We also have a docker profile which you may find useful if you decide to run the workflow on your machine}. 
-%is also straightforward. 
-
-%You could now run the workflow with Singularity on the head node (generally not advised), 
-%or by starting an interactive session on one of the compute nodes.
-%
-%\begin{steps}
-%\begin{lstlisting}
-%srun --pty bash
-%\end{lstlisting}
-
-%and once you get onto one of the compute nodes 
+As you can see, Nextflow makes it really easy to define software environment via Singularity 
+or Conda\footnote{We also have a docker profile which you may find useful if you decide to run the workflow on your machine}. 
 
 
-Given that Singlularity is available on our cluster, let's start by using that profile,
-as the most robust way of setting up the software environment.
+Given that Singlularity is available on our cluster, we will use the \texttt{singularity} profile for software environment using \texttt{-profile singularity}. Combinations of profiles can be selected at runtime 
+so we will also use the \texttt{slurm} profile which will ensure the tasks are not executed on the head node but submitted to the cluster.
+
+In addition to this basic configuration, there are many setting that can and in some cases must be set -- refer to 
+\href{https://www.nextflow.io/docs/latest/executor.html}{executors section of Nextflow documentation}\footnote{\url{https://www.nextflow.io/docs/latest/executor.html}}. 
+For running real-life pipelines in a cluster environment you will also use 
+\href{https://www.nextflow.io/docs/latest/process.html#directives}{directives}\footnote{\url{https://www.nextflow.io/docs/latest/process.html\#directives}}
+controlling the resources (\texttt{cpus, memory, time}) requested for each job. Other directives relevant in HPC context might include \texttt{queue} and \texttt{scratch}.
 
 
-
-We will need Singularity for nextflow to be able to pull the container image from Singularity Hub and run the containerised software. 
-By default the pipeline will process reads for a single accession -- our head node should be able to handle this. 
 
 \begin{steps}
 \begin{lstlisting}
@@ -649,33 +803,10 @@ module load singularity-3.2.1-gcc-5.4.0-tn5ndnb
 
 # Run the workflow
 
-nextflow run main.nf -profile singularity
+nextflow run main.nf -profile slurm,singularity
 \end{lstlisting}
 \end{steps}
-%# Release the resources - leave the interactive session.
-%exit
 
-This is sufficient when running a workflow locally, in an interactive session or on a standalone server. 
-The next step is to get nextflow to make use of the HPC batch submission system, to be able to run the full workflow 
-without unleashing your sysadmins wrath.\\ 
-
-\begin{steps}
-Edit \texttt{nextflow.config}. Your task is to add a \texttt{slurm} profile which will set the appropriate executor. 
-\end{steps}
-
-\begin{questions}
-What is your \texttt{slurm} profile configuration and where do you place it in \texttt{nextflow.config}?
-\begin{answer}
-The following code should be placed within the \texttt{profiles\{\}} block in \texttt{nextflow.config}.
-\begin{lstlisting}
-  slurm {
-    process {
-      executor = 'slurm'
-    }
-  }
-\end{lstlisting}
-\end{answer}
-\end{questions}
 
 %\begin{questions}
 %\begin{answer}
@@ -683,42 +814,330 @@ The following code should be placed within the \texttt{profiles\{\}} block in \t
 %\end{questions}
 
 
-There are of course many setting that can and in some cases must be set -- refer to 
-\href{https://www.nextflow.io/docs/latest/executor.html}{executors section of Nextflow documentation}\footnote{\url{https://www.nextflow.io/docs/latest/executor.html}}. 
-For running real-life pipelines in a cluster environment you will also use 
-\href{https://www.nextflow.io/docs/latest/process.html#directives}{directives} \footnote{\url{https://www.nextflow.io/docs/latest/process.html\#directives}}
-controlling the resources (\texttt{cpus, memory, time}) requested for each job. Other possibly relevant directives include \texttt{queue} and \texttt{scratch}.
 
+%------------------------
+\subsection{Implementing FastQC}
+%------------------------
 
+\begin{itemize}
+ \item  Read multiple input files into a \emph{channel}
+ \item  Restrict how many items are emitted through a \emph{channel}
+% \item  
+% \item  
+\end{itemize}
 
-\subsection{Cluster run}
+Paste and save the following into a new file \texttt{getpairs.nf}
+\begin{lstlisting}
+// Channel reading our FASTQ files
+Channel.fromFilePairs("data/**_R{1,2}.fastq.gz")
+  .set { readPairsForQcChannel }
 
+// sneak-peak at what flows through our channel
+readPairsForQcChannel.view()
+\end{lstlisting}
 
-To avoid running the workflow on our head node or in an interactive session, we will use the \texttt{slurm} profile you have defined\footnote{If you are struggling and can't get help, try: \texttt{git stash \&\& git checkout workshop}}. 
-As before, the software environment will be handled via the \texttt{singularity} profile. 
-For that, we will need Singularity on the head node for nextflow to be able to pull the container image from Singularity Hub (we could also use a locally stored image). Singularity will also be required on the compute nodes which will run the individual tasks, but this should happen seamlessly if an appropriate module is loaded on the head node, otherwise the required module would also have to be specified in the workflow configuration files. 
+If you now run 
 
 \begin{steps}
-By default a single accession will be processed. 
-You may use the \texttt{-resume} flag to avoid re-computing already existing results. 
-
-
 \begin{lstlisting}
-# Load the Singularity module on your cluster
-# If it is unavailable contact the cluster sysadmin
-
-module load singularity-3.2.1-gcc-5.4.0-tn5ndnb
-
-# Run the workflow
-
-nextflow run main.nf -profile slurm,singularity -resume
+nextflow run main.nf getpairs.nf
 \end{lstlisting}
 \end{steps}
 
-%\begin{lstlisting}
-%nextflow run main.nf -profile slurm,singularity -resume
-%\end{lstlisting}
-%\end{steps}
+You will see a long list of file pairs. One way to restrict the number of input files would be 
+
+Initially, we may want to restrict the number of file pairs being processed 
+e.g. by pointing to a specific file pair only,
+
+\begin{lstlisting}
+Channel.fromPath("data/raw_reads/Baxter_R{1,2}.fastq.gz")
+   .set { readPairsForQcChannel } 
+\end{lstlisting}
+
+or by using one of NF operators to limit the number of items emitted by the channel.
+Either \textbf{one} of \texttt{.take(1)}, \texttt{.first()} or \texttt{.last()} would suffice.  
+
+\begin{lstlisting}
+// Channel reading our FASTQ files
+Channel.fromPath("data/raw_reads/*.fastq.gz")
+  .take(1) 
+  .first() 
+  .last() 
+  .set { readsForQcChannel }
+
+// sneak-peak at what flows through our channel
+readsForQcChannel.view()
+\end{lstlisting}
+
+Now that we have our input channel ready and emitting, lets define a process
+to implement the original bash snippet.
+
+\begin{lstlisting}
+fastqc \
+  --threads 1 \
+  raw_reads/${SAMPLE}_R1.fastq.gz \
+  raw_reads/${SAMPLE}_R2.fastq.gz
+\end{lstlisting}
+
+In this case, there is no benefit from processing files as pairs.
+In fact, separating the pairs should in principle allow more efficient 
+allocation of resources as we will end up with $2 \times$ the number of tasks,
+but each being half the size of the original.
+
+
+
+\begin{lstlisting}
+process fastqc {
+    
+  input:
+   file(reads) from readsForQcChannel
+
+  output:
+    file('*') into fastqcRawResultsChannel
+
+  script:
+  """
+  fastqc  --threads ${task.cpus} ${reads}
+  """
+}
+\end{lstlisting}
+
+\begin{note}
+\begin{itemize}
+ \item 
+As you might have guessed, \texttt{\$\{task.cpus\}} is the number of logical cores assigned to a given process. This can be set using the \texttt{cpus} directive above the input block. The default is \texttt{cpus 1}.
+% \item The (optional) \texttt{tag} directive will help us to decern   tag { reads.name }
+\end{itemize}
+\end{note}
+
+%------------------------
+\subsection{Implementing Trimmomatic}
+%---
+
+We will guide you through the implementation of one more process before you take over!
+The task is to adapter/quality trim raw reads as pairs and output them into a channel 
+to be consumed by an alignment process.
+
+The original bash implementation was as follows
+
+\begin{lstlisting}
+  #####
+  mkdir -p qc_reads
+  trimmomatic PE \
+      -threads 1 \
+      raw_reads/${SAMPLE}_R1.fastq.gz raw_reads/${SAMPLE}_R2.fastq.gz \
+      qc_reads/${SAMPLE}_R1.fastq.gz qc_reads/${SAMPLE}_R1.unpaired.fastq.gz \
+      qc_reads/${SAMPLE}_R2.fastq.gz qc_reads/${SAMPLE}_R2.unpaired.fastq.gz \
+      ILLUMINACLIP:misc/trimmomatic_adapters/TruSeq3-PE.fa:2:30:10:3:true \
+      LEADING:2 \
+      TRAILING:2 \
+      SLIDINGWINDOW:4:15 \
+      MINLEN:36
+\end{lstlisting}
+
+This time we have to process the reads as pairs so using \texttt{Channel.fromPath()} 
+will not suffice. Conveniently, NF has been developed by bioinformaticians so 
+it smoothly handles paired files. 
+
+\begin{lstlisting}
+Channel.fromFilePairs("data/raw_reads/*_R{1,2}.fastq.gz")
+  .take (1)
+  .view ()
+  .into { readPairsForTrimmingChannel }
+\end{lstlisting}
+
+
+\begin{note}
+As before, during development we
+\begin{itemize}
+ \item use the \texttt{.take(n)} operator to limit the number of emissions coming through the channel
+ \item use \texttt{.view()} to sneak-peak at what exactly is emitted
+\end{itemize}
+\end{note}
+
+The output from the \texttt{.view()} operator in this case,
+after some re-formatting would be something like
+
+\begin{lstlisting}
+[
+  Gladius, 
+  [
+    /path/data/raw_reads/Gladius_R1.fastq.gz, 
+    /path/data/raw_reads/Gladius_R2.fastq.gz
+  ]
+]
+\end{lstlisting}
+
+The single emission consists of a set of two elements. 
+\begin{enumerate}
+\item The sample name (accession) i.e. the file names prefix captured by the \texttt{*} glob. 
+\item The list of two FASTQ files 
+\end{enumerate}
+
+One more thing we need is a file containing the adapter sequences for trimmomatic.
+This could be done in a number of ways, but it is best to stick to the dataflow paradigm 
+and set-up another channel for that.
+
+\begin{lstlisting}
+Channel.fromPath('data/misc/trimmomatic_adapters/TruSeq3-PE.fa')
+  .set{ adaptersChannel }
+\end{lstlisting}
+
+We now have to input channels, but how do we handle multiple input channels? 
+If we just declare both separately 
+
+\begin{lstlisting}
+process trimmomatic {
+  input:
+    set val(accession), file(reads) from readPairsForTrimmingChannel
+    file(adapters) from adaptersChannel
+...    
+\end{lstlisting}
+
+This would work perfectly fine... but only for the first pair of reads. 
+There is only a single adapters file emitted by the \texttt{adaptersChannel}, 
+so once this channel no longer emits outputs, the process will not run again.
+
+What we really want is for the adapters file to be used in combination with 
+each pair of FASTQ files. Enter the \texttt{.combine()} operator.
+
+\begin{lstlisting}
+process trimmomatic_pe {
+
+  input:
+    set file(adapters), val(accession), file(reads) 
+      from adaptersChannel.combine(readPairsForTrimmingChannel)
+...
+\end{lstlisting}
+
+This covers our inputs and we can now focus on the outputs and the script block.
+As mentioned earlier we don't have to be too specific about the output file names 
+but just have to make it clear to NF which output files are to be sent to an output channel.
+In this case these are the ones with names ending with \texttt{paired.fastq.gz}.
+We also output the \texttt{accession} variable to keep track of which sample is being processed.
+%We do not have to use the \texttt{accession} and the output files could simply be named 
+%\texttt{R1.paired.fastq.gz, ..., R2.unpaired.fastq.gz} or similar. 
+
+\begin{lstlisting}
+process trimmomatic_pe {
+
+  input:
+    set file(adapters), val(accession), file(reads) 
+      from adaptersChannel.combine(readPairsForTrimmingChannel)
+  output:
+    set val(accession), file('*.paired.fastq.gz') into trimmedReadsChannel
+...
+\end{lstlisting}
+
+The translation of the trimmomatic call from plain bash to bash embedded in the script block 
+is straightforward. 
+
+\begin{enumerate}
+ \item Explicit paths to the input files are replaced with \texttt{\$\{reads\}} variable. The read files could also be addressed individually as \texttt{\$\{reads[0]\}} and \texttt{\$\{reads[1]\}}.
+ \item Explicit output file paths for trimmomatic are replaced with convenient short names which need not be globally unique. 
+\end{enumerate}
+
+
+
+\begin{lstlisting}
+process trimmomatic_pe {
+
+  input:
+    set file(adapters), val(accession), file(reads) 
+      from adaptersChannel.combine(readPairsForTrimmingChannel)
+
+  input:
+    set file(adapters), val(accession), file(reads) from adaptersChannel.combine(readPairsForTrimmingChannel)
+
+  output:
+    set val(accession), file('*.paired.fastq.gz') into trimmedReadsChannel
+
+  script:
+  """
+  trimmomatic PE \
+    ${reads} \
+    R1.paired.fastq.gz \
+    R1.unpaired.fastq.gz \
+    R2.paired.fastq.gz \
+    R2.unpaired.fastq.gz \
+    ILLUMINACLIP:${adapters}:2:30:10:3:true \
+    LEADING:2 \
+    TRAILING:2 \
+    SLIDINGWINDOW:4:15 \
+    MINLEN:36 \
+    -Xms256m \
+    -Xmx256m
+  """
+}
+\end{lstlisting}
+
+
+% \item The \texttt{\$\{reads\}} is the list comprised of the two input read files. These could be accessed individually using \texttt{\$\{reads[0]\}} and \texttt{\$\{reads[1]\}}.
+
+
+%------------------------
+\subsection{Implementing BWA-MEM}
+%-
+
+Now is your opportunity to put into practice what you have learnt from the above walk-
+through of implementing FastQC and Trimmomatic commands. Your task is to implement
+the \texttt{bwa mem} command in a Nextflow process.
+Here are some questions to get you thinking as you try to implement this rule:
+
+The relevant snippet from the bash pipeline is as follows 
+\begin{lstlisting}
+  bwa mem -t 1 \
+    references/reference.fasta.gz \
+    qc_reads/${SAMPLE}_R1.fastq.gz qc_reads/${SAMPLE}_R2.fastq.gz \
+  | samtools view -b \
+  > mapped/${SAMPLE}.bam
+\end{lstlisting}
+
+\begin{questions}
+The mapping process requires and index comprised of several files but takes their common prefix (basename) 
+as argument. How can you pass that prefix to the command?
+\begin{answer}
+You \emph{could} hard-code it (not a good practice) or parse it out from the index file names. 
+\end{answer}
+Can you do it without hard-coding it or having to parse it out from the input file name(s)?
+\begin{answer}
+Our indexing process, in addition to the index files also outputs the prefix used when building the index. 
+\end{answer}
+How do you make sure that each instance of the process - and not just the first one - gets the index files in \emph{(cough)} combination with a pair of FASTQ files?
+\begin{answer}
+Use the \emph{combine} operator to combine the \texttt{indexChannel} with the \texttt{trimmedReadsChannel}.
+\end{answer}
+\begin{answer}
+\end{answer}
+\end{questions}
+
+
+%------------------------
+\subsection{Adding New Samples}
+%------------------------
+
+Since we had to stop the channel from sucking up all the samples by applying the take operator...
+
+
+
+
+We are going to work with an example Nextflow workflow to demonstrate how they are run, 
+improve your understanding of \emph{processes} and \emph{channels} and finally introduce\ \emph{operators}, which are applied to channels to shape and direct flowing data.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 \subsection{Under the hood}
@@ -874,26 +1293,26 @@ We have switched from singularity to conda so the software environment has chang
 \end{bonus}
 
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=\textwidth]{handout/flowchart.png}
-\caption{The example workflow}
-\label{fig:dag}
-\end{figure}
-
-
-\begin{questions}
-Investigate \texttt{main.nf} alongside Figure~\ref{fig:dag}. 
-
-Which \href{https://www.nextflow.io/docs/latest/operator.html}{nextflow operators}\footnote{\url{https://www.nextflow.io/docs/latest/operator.html}}, in addition to the previously discussed, are used and for what purposes? 
-
-\begin{answer}
-The \texttt{.combine()} operator outputs all combinations of items emitted by two channels. This results with a downstream process to be executed for each such combination. So e.g. \texttt{bwa\_mem} will be executed for\\ $(reference, accession_1),(reference, accession_2),..,(reference, accession_n)$.
-
-The \texttt{.collect()} operator collects all the items emitted by a channel returns the resulting \texttt{List} as a single emission. This is required e.g.\ if a process needs to be executed once with all the samples as input.
-\end{answer}
-
-\end{questions}
+%\begin{figure}[H]
+%\centering
+%\includegraphics[width=\textwidth]{handout/flowchart.png}
+%\caption{The example workflow}
+%\label{fig:dag}
+%\end{figure}
+%
+%
+%\begin{questions}
+%Investigate \texttt{main.nf} alongside Figure~\ref{fig:dag}. 
+%
+%Which \href{https://www.nextflow.io/docs/latest/operator.html}{nextflow operators}\footnote{\url{https://www.nextflow.io/docs/latest/operator.html}}, in addition to the previously discussed, are used and for what purposes? 
+%
+%\begin{answer}
+%The \texttt{.combine()} operator outputs all combinations of items emitted by two channels. This results with a downstream process to be executed for each such combination. So e.g. \texttt{bwa\_mem} will be executed for\\ $(reference, accession_1),(reference, accession_2),..,(reference, accession_n)$.
+%
+%The \texttt{.collect()} operator collects all the items emitted by a channel returns the resulting \texttt{List} as a single emission. This is required e.g.\ if a process needs to be executed once with all the samples as input.
+%\end{answer}
+%
+%\end{questions}
 
 
 \subsection{Workflow outputs}
@@ -915,6 +1334,7 @@ processes are to be gather in one location, in which case we attach the same \te
 \begin{steps}
 
 Edit \texttt{main.nf}. Your task is to add a process which will merge the bam files produced by the \texttt{bwa\_mem} process. 
+
 \begin{questions}
 How do you ensure that \textbf{all} BAM files end up in the same instance of your process?
 \begin{answer}
@@ -945,78 +1365,10 @@ don't forget to modify your process configuration to request 2 cpus per task.
 \end{questions}
 \end{bonus}
 
-%
-%Option 1\\
-%Edit \texttt{main.nf}. Your task is to add another multiqc process which will summarize all fastqc results together, i.e. those from raw and from the trimmed data. \\
-%%additional 2 channels, additional process with .collect
-%%
-%Option 2 (advanced) \\
-%Add a process which will take all raw reads and all paired reads for a given sample, count the number of raw paired reads and the number of paired reads remaining after the trimming.
-%
-%%\texttt{groupTuple}?\\
 
 \end{steps}
 
-\section{Your own workflow (TODO: replace with variant calling?)}
 
-It is time to have a go at your own pipeline. 
-Since we have some inputs and configuration files at hand, 
-you can start a \texttt{own.nf} script file in the current 
-directory and read the input files from \texttt{./data}. 
-
-
-
-\begin{questions}
-The simple pipeline should include the following:
-
-\begin{itemize}
-\item Code for reading FASTQ read files from \texttt{./data} individually (i.e.\ not as pairs) into a channel.
-\item A process which will take a read file, count the reads and output the file name alongside the read count.
-\item A way of aggregating the individual count files into a single csv file. This could be done in another process or using an operator. 
-\end{itemize}
-
-\begin{answer}
-
-There are different ways of approaching the exercise, 
-here is an example solution.
-For comparison, we demonstrate the aggregating step both as a process
-and using the \texttt{collectFile()} operator. 
-
-\begin{lstlisting}
-readsChannel = Channel.fromPath("data/**.fastq.gz") 
-
-process countReads {
-  input:
-    file fastq from readsChannel
-
-  output:
-    file '*' into countsChannel1, countsChannel2
-
-  """
-  echo -ne "${fastq}," > count
-  zcat $fastq | paste - - - - | wc -l >> count
-  """
-}
-
-process aggregate {
-  publishDir params.outdir
-
-  input:
-    file '*.count' from countsChannel1.collect()
-
-  output:
-    file '*.csv'
-
-  """
-  cat *.count > counts_from_process.csv
-  """
-}
-
-countsChannel2.collectFile(name: 'counts_from_operator.csv', storeDir: params.outdir)
-\end{lstlisting}
-\end{answer}
-
-\end{questions}
 
 %% To make a paragraph appear as a "note" to the reader, simply wrap it in a "note" environment like
 %% this:
