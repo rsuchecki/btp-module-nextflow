@@ -337,9 +337,12 @@ The content of the above script can be broken down as follows:
     \item Directives are placed at the top, directive \texttt{echo} controls whether \texttt{stdout} of the process is redirected to your terminal
     \item Input block (lines 10-11) 
     \item Script block (lines 13-16)
+    \begin{itemize}
+     \item It is assumed to be a bash script unless an alternative shebang line (e.g.\  \texttt{/usr/bin/env python3}) is specified at the top of the block 
+     \item The \texttt{\$cheer} in the script block is a nextflow variable local to the process, \textbf{not} a bash variable.
+    \end{itemize}
   \end{itemize}
-  \item It is assumed to be a bash script unless an alternative shebang line (e.g.\  \texttt{/usr/bin/env python3}) is not specified at the top of the block 
-  \item The \texttt{\$cheer} in the script block is a nextflow variable local to the process, \textbf{not} a bash variable.
+  
   \item Indentation is inconsequential. 
 \end{itemize}
 
@@ -353,7 +356,7 @@ We would now like each task to be submitted as a batch job for execution on one 
 
 Thanks to Nextflow's out-of-the-box support for different compute environments, 
 it only requires changing the process executor from the default \texttt{local} to \texttt{slurm}.
-This could be done via configuration files (more about that later) or using the directive \texttt{executor = `slurm'} in the process definition. 
+This could be done via configuration files (more about that later) or using the directive \texttt{executor `slurm'} in the process definition. 
 However, for our simple use-case it should suffice to use the \texttt{NXF\_EXECUTOR} environmental variable.
 
 \begin{steps}
@@ -399,23 +402,20 @@ NXF_EXECUTOR=slurm nextflow run main.nf
 \end{lstlisting}
 \end{steps}
 
-The messages printed to the terminal should now for each task include the executor being used and the name of the compute node on which the task was executed.
+The messages printed to the terminal should by each task should now include the name of the executor being used and the name of the compute node on which the task was executed.\\
 
 
-
-
-
-
-
+\begin{note}
 Nextflow facilitates but does not enforce separation of workflow logic from the configuration
 of compute and software environments as well as from other properties of the workflow.  
 As such, you \textit{could} get by developing nextflow workflows without worrying about that 
-aspect -- but you would be missing a lot in terms of flexibility, extensibility, portability and more
+aspect -- but you would be missing a lot in terms of flexibility, extensibility, portability and more.
 
 Nextflow looks for workflow configuration primarily in \texttt{nextflow.config} file, and additional config files can be included. Unsurprisingly the `hello' example does not require much configuration,
 we would also like to crunch some real, albeit small, data.
 
 Let's have a play with a slightly more practical workflow.
+\end{note}
 
 
 \newpage
@@ -438,7 +438,7 @@ The workflow includes the following steps
 
 Before we start developing the Nextflow script, we need to set-up 
 \begin{itemize}
-  \item shared code base to to keep our efforts in sync
+  \item shared code base to be able to keep our efforts in sync when required
   \item input data for our workflow
   \item software environment including third-party tools
 \end{itemize}
@@ -480,6 +480,14 @@ cp --recursive \
 tree data
 \end{lstlisting}
 \end{steps}
+
+\begin{warning}
+To be able to run this tutorial outside the HPC cluster provided for the workshop you may use 
+the provided script to download the required input files
+\begin{lstlisting}
+#nextflow run setup_data.nf
+\end{lstlisting}
+\end{warning}
 
 %------------------------
 \subsection{The software environment}
