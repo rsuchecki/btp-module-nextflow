@@ -254,7 +254,7 @@ set to \texttt{`Mundo'} rather than \texttt{`World'}
 
 \begin{note}
 When the pipeline is launched with the \texttt{-resume} option, 
-any attempt to execute previously executed process with the same inputs,
+any attempt to execute previously executed process with the same inputs
 will cause the process execution to be skipped, 
 producing the previously stored outputs.
 
@@ -271,7 +271,7 @@ always running your pipelines with \texttt{-resume} and only omitting it
 on rare occasions when you want to re-compute the results
 even though inputs have not changed. 
 
-\url{https://www.nextflow.io/docs/latest/process.html#cache}
+For more on task caching see \url{https://www.nextflow.io/docs/latest/process.html#cache}
 
 \end{note}
 \newpage
@@ -307,13 +307,14 @@ The main script for the `hello' example is as follows:
 
 cheers = Channel.from 'Bonjour', 'Ciao', 'Hello', 'Hola', 'Czesc'
 
-params.universe = 'World' //setting default value, modify at runtime with e.g.: --world Mundo
+params.universe = 'World'
 
 process sayHello {
   echo true
 
   input:
     val cheer from cheers
+    
   script:
     """
     echo "$cheer $params.universe!"
@@ -330,13 +331,14 @@ The content of the above script can be broken down as follows:
 \begin{itemize}
   \item The shebang line (line 1) is optional.
   \item \texttt{Channel.from(some\_list)} creates a channel emitting the list elements one by one.
-  \item \texttt{params.universe = `World'} sets the default value of the command-line accessible option
+  \item \texttt{params.universe = `World'} sets the default value of the command-line accessible option (e.g.\ \texttt{--world Mundo})
   \item \href{https://www.nextflow.io/docs/latest/process.html}{Process} definition (lines 7-16)
   \begin{itemize}
     \item Directives are placed at the top, directive \texttt{echo} controls whether \texttt{stdout} of the process is redirected to your terminal
     \item Input block (lines 10-11) 
-    \item Script block (lines 12-15)
+    \item Script block (lines 13-16)
   \end{itemize}
+  \item It is assumed to be a bash script unless an alternative shebang line (e.g.\  \texttt{/usr/bin/env python3}) is not specified at the top of the block 
   \item The \texttt{\$cheer} in the script block is a nextflow variable local to the process, \textbf{not} a bash variable.
   \item Indentation is inconsequential. 
 \end{itemize}
@@ -351,8 +353,8 @@ We would now like each task to be submitted as a batch job for execution on one 
 
 Thanks to Nextflow's out-of-the-box support for different compute environments, 
 it only requires changing the process executor from the default \texttt{local} to \texttt{slurm}.
-This could be done via configuration files (more about that later) or in the process definition. 
-However, for our simple use-case it should suffice to use the environmental variable.
+This could be done via configuration files (more about that later) or using the directive \texttt{executor = `slurm'} in the process definition. 
+However, for our simple use-case it should suffice to use the \texttt{NXF\_EXECUTOR} environmental variable.
 
 \begin{steps}
 \begin{lstlisting}
@@ -397,16 +399,12 @@ NXF_EXECUTOR=slurm nextflow run main.nf
 \end{lstlisting}
 \end{steps}
 
-The messages printed to the terminal should now include the name of the compute node on which a given task is executed.
+The messages printed to the terminal should now for each task include the executor being used and the name of the compute node on which the task was executed.
 
 
 
 
 
-
-
-
-\subsection{Goodbye Hello}
 
 
 Nextflow facilitates but does not enforce separation of workflow logic from the configuration
@@ -428,26 +426,23 @@ Let's have a play with a slightly more practical workflow.
 In the Snakemake section of our tutorial, we include an example bash ``pipeline'', which 
 includes a number of common tasks wrapped in a single 
 \href{https://github.com/UofABioinformaticsHub/snakemake_template/blob/tutorial/analysis.sh}{bash script}\footnote{\url{https://github.com/UofABioinformaticsHub/snakemake_template/blob/tutorial/analysis.sh}}.
-We have already covered a number of limitation of that and similar approaches, 
-so without further delay we will cover steps to re-implementing that workflow 
-in Nextflow. 
-
+The workflow includes the following steps
 
 \begin{itemize}
-  \item Run FastQC across all the raw read files
+  \item Run FastQC across the raw read (FASTQ) files
   \item Adapter, quality, and read length filtering using Trimmomatic
   \item Aggregating FastQC reports from the raw reads using MultiQC
   \item Index the reference FASTA file
   \item Perform a \texttt{bwa-mem} read alignment
 \end{itemize}
 
+Before we start developing the Nextflow script, we need to set-up 
+\begin{itemize}
+  \item shared code base to to keep our efforts in sync
+  \item input data for our workflow
+  \item software environment including third-party tools
+\end{itemize}
 
-
-We will walk you through the steps of reimplementing the first few steps of the above script 
-into a Nextflow workflow. Along the way, we will introduce the core concepts of Nextflow 
-and then ask you to reimplement the \texttt{bwa-mem} step yourselves. 
-For those working quickly, you will have the opportunity to reimplement the \texttt{multiqc} step. 
-This will provide you with a foundation for you to be able to port your own workflows into Nextflow. 
 
 
 %------------------------
@@ -486,6 +481,392 @@ tree data
 \end{lstlisting}
 \end{steps}
 
+%------------------------
+\subsection{The software environment}
+%------------------------
+
+There are multiple ways in which you can provision a software environment for your workflow.
+You may have al the required tools installed on your system or available as a collection of pre-compiled binaries? Perhaps a friendly sysadmin installs convenient modules on your HPC cluster? You may also be using conda or perhaps docker or singularity containers? All those options are compatible with Nextflow. 
+%The software environment for this workshop was put together using conda and captured in a Singularity container image. 
+
+We have provided a rudimentary script \texttt{versions.nf} which tries to run each of the software tools,
+and report their version numbers. 
+
+
+\begin{steps}
+Try to run
+\begin{lstlisting}
+nextflow run versions.nf
+\end{lstlisting}
+\end{steps}
+
+\begin{warning}
+This is expected to fail.\\
+Unless all the software required by the pipeline is available on the \texttt{\$PATH},
+which we don't expect, the pipeline should terminate with an error.
+The output information may help you identify the cause. 
+Try to relate the error message to the relevant section of the main script (\texttt{main.nf}). 
+\end{warning}
+
+
+\begin{questions}
+Identify the exact \texttt{error}. 
+\begin{answer}
+The cause was likely ``\texttt{.command.sh: line 2: bwa: command not found}''. 
+See line 23 in the following example:
+
+\begin{lstlisting}
+N E X T F L O W  ~  version 19.04.0
+Launching `versions.nf` [elegant_morse] - revision: 525c4d8fea
+[warm up] executor > local
+[0a/26fff6] Submitted process > get_versions
+ERROR ~ Error executing process > 'get_versions'
+
+Caused by:
+  Process `get_versions` terminated with an error exit status (127)
+
+Command executed:
+
+  fastqc --version
+  multiqc --version
+  echo -n "bwa " &&  bwa 2>&1 | grep 'Version'
+  echo -n "samtools "&&  samtools 2>&1 | grep 'Version'
+
+Command exit status:
+  127
+
+Command output:
+  (empty)
+
+Command error:
+  .command.sh: line 2: fastqc: command not found
+
+Work dir:
+  /shared/training001/nextflow/example_workflow/work/0a/26fff6b11f473b0c3f0b3961608462
+
+Tip: view the complete command output by changing to the process work dir and entering the command `cat .command.out`
+
+ -- Check '.nextflow.log' file for details
+
+\end{lstlisting}
+\end{answer}
+\end{questions}
+
+
+There are different ways in which we could ensure that the relevant software is available, for example using process 
+\emph{directives} at the top of each process definition. We could also use the opportunity to change the executor from local to Slurm, for example:
+\begin{lstlisting}
+process foo {
+  module 'samtools/1.9' 
+    executor 'slurm' 
+  //further code omitted 
+\end{lstlisting}
+
+This is a perfectly valid syntax, which can be convenient, particularly during pipeline development, 
+but for more portable workflows it is preferable to keep compute and software environment configuration 
+separate from pipeline logic -- in simple terms not in the workflow script (\texttt{main.nf}).
+
+\subsection{The config file(s) and profiles}
+
+Workflow configuration belongs in \texttt{nextflow.config} file. 
+Transferring the above mention \emph{directives} from process definitions in \texttt{main.nf} 
+to \texttt{nextflow.config} would make things slightly better, e.g.
+
+\begin{lstlisting}
+#nextflow.config
+
+process.executor = 'slurm' 
+process.module = 'samtools/1.9' 
+\end{lstlisting}
+
+or using the preferred syntax
+
+\begin{lstlisting}
+process {
+  executor = slurm
+  module = 'samtools/1.9'
+}
+\end{lstlisting}
+
+
+This is however still a bit rigid. 
+\begin{itemize}
+\item You may be developing your pipeline on a local machine or a server where software modules are not available. 
+\item If developing directly in the cluster environment, you may prefer your quick test runs to happen either on the head node or in an interactive session you are using, rather than always having jobs submitted to sit in the always-busy cluster queue.
+\end{itemize}
+
+Nextflow enables the definition of \emph{profiles} which make it easy to run a workflow 
+with different configuration settings, including, but not limited to executors and software environment.
+
+For our pipeline we have defined several \emph{profiles}, which allow us to execute the logic from \texttt{main.nf} while providing the required software either by creating a \texttt{conda} environment or by using Docker of Singularity containers where the conda environment has already been captured. 
+
+\subsubsection{Relevant profiles}
+
+
+Have a look inside \texttt{nextflow.config}, and locate the process definitions
+
+\begin{steps}
+\begin{lstlisting}
+less nextflow.config
+\end{lstlisting}
+\end{steps}
+
+The ones most immediately relevant are:
+
+\begin{lstlisting}
+profiles {
+  //EXECUTORS
+  slurm {
+    process {
+      executor = 'slurm'
+    }
+  }
+  //SOFTWARE
+  conda {
+    process {
+      conda = "$baseDir/conf/conda.yaml"
+    }
+  }
+  singularity {
+    process {
+      container = '/shared/.singularity/nextflow-embl-abr-webinar.simg' 
+    }
+    singularity {
+      enabled = true
+      autoMounts = true
+    }
+  }
+}
+\end{lstlisting}
+
+
+As you can see, Nextflow makes it really easy to define software environment via Singularity 
+or Conda\footnote{We also have a docker profile which you may find useful if you decide to run the workflow on your machine}. 
+
+
+Given that Singlularity is available on our cluster, we will use the \texttt{singularity} profile for software environment using \texttt{-profile singularity}. Combinations of profiles can be selected at runtime 
+so we will also use the \texttt{slurm} profile which will ensure the tasks are not executed on the head node but submitted to the cluster.
+
+In addition to this basic configuration, there are many setting that can and in some cases must be set -- refer to 
+\href{https://www.nextflow.io/docs/latest/executor.html}{executors section of Nextflow documentation}\footnote{\url{https://www.nextflow.io/docs/latest/executor.html}}. 
+For running real-life pipelines in a cluster environment you will also use 
+\href{https://www.nextflow.io/docs/latest/process.html#directives}{directives}\footnote{\url{https://www.nextflow.io/docs/latest/process.html\#directives}}
+controlling the resources (\texttt{cpus, memory, time}) requested for each job. Other directives relevant in HPC context might include \texttt{queue} and \texttt{scratch}.
+
+
+
+\begin{steps}
+\begin{lstlisting}
+# Load the Singularity module 
+# If it is unavailable contact the cluster sysadmin
+
+module load singularity-3.2.1-gcc-5.4.0-tn5ndnb
+
+# Run the workflow
+
+nextflow run versions.nf -profile slurm,singularity
+\end{lstlisting}
+\end{steps}
+
+
+%\begin{questions}
+%\begin{answer}
+%\end{answer}
+%\end{questions}
+
+\section{Reimplementing a workflow in Nextflow - a walk-through}
+
+Recall the steps of the original bash workflow
+
+\begin{itemize}
+  \item Run FastQC across the raw read (FASTQ) files
+  \item Adapter, quality, and read length filtering using Trimmomatic
+  \item Aggregating FastQC reports from the raw reads using MultiQC
+  \item Index the reference FASTA file
+  \item Perform a \texttt{bwa-mem} read alignment
+\end{itemize}
+
+We will walk you through reimplementing the first few steps 
+into a Nextflow workflow. Along the way, we will introduce the core concepts of Nextflow 
+and then ask you to reimplement the \texttt{bwa-mem} step yourselves. 
+If you finish that with some time to spare, you will have the opportunity to reimplement the \texttt{multiqc} step. 
+This will provide you with a foundation for you to be able to port your own workflows into Nextflow. 
+
+
+
+%------------------------
+\subsection{Implementing FastQC}
+%------------------------
+
+In this section you will learn how to 
+
+\begin{itemize}
+ \item Read multiple input files into a \emph{channel}
+ \item View items emitted by a \emph{channel}
+ \item Restrict how many items are emitted through a \emph{channel} using \emph{operators}
+ \item Effortlessly parallelize the task by plugging a \emph{channel} into a \emph{process}
+ \item Use variables pointing to emitted items within processes' script block
+\end{itemize}
+
+Paste and save the following into a new file \texttt{main.nf}
+\begin{lstlisting}
+// Channel reading our FASTQ files
+Channel.fromPath("data/raw_reads/*.fastq.gz")
+  .view()
+\end{lstlisting}
+
+We create a (yet unnamed) channel and use the \texttt{view} \emph{operator} to
+print the names of emitted files to the terminal. If you now run 
+
+\begin{steps}
+\begin{lstlisting}
+nextflow run main.nf
+\end{lstlisting}
+\end{steps}
+
+You will see a long list of files being emitted by the channel. 
+
+While developing a workflow we tend to prefer to only use a mall subset of data. 
+We could restrict the number of FASTQ files emitted by the channel 
+e.g.\ by pointing to a specific file or a subset of files, 
+in this case the two read files available for Baxter
+
+\begin{lstlisting}
+Channel.fromPath("data/raw_reads/Baxter_R{1,2}.fastq.gz")
+  .view()
+\end{lstlisting}
+
+We can do better! Let's use one of NF operators capable of limiting the number of items emitted by the channel.
+Either \textbf{one} of \texttt{.first()}, \texttt{.last()} or \texttt{take(n)} will suffice.  
+
+
+\begin{lstlisting}
+// Channel reading our FASTQ files
+Channel.fromPath("data/raw_reads/*.fastq.gz")
+  .take(1) 
+  .first() 
+  .last() 
+  .view()
+\end{lstlisting}
+
+Having all three operators is redundant, we will stick with \texttt{take(1)},
+The last thing to do is to assign our channel to a variable whose name we can use elsewhere in the script.
+The simplest form would be
+
+\begin{lstlisting}
+readsForQcChannel = Channel.fromPath("data/raw_reads/*.fastq.gz")
+\end{lstlisting}
+
+But since we often chain multiple operations,
+the following syntax is preferred. 
+
+\begin{lstlisting}
+// Channel reading our FASTQ files
+Channel.fromPath("data/raw_reads/*.fastq.gz")
+  .take(1) 
+  .view()
+  .set { readsForQcChannel }
+\end{lstlisting}
+
+
+\begin{steps}
+Update \texttt{main.nf} and run it again
+\begin{lstlisting}
+nextflow run main.nf
+\end{lstlisting}
+\end{steps}
+
+You should see that only a single item is emitted by the channel.
+
+Now that we have our input channel ready and emitting, we can remove the view operator
+and focus on defining a process to implement the original bash snippet.
+
+\begin{lstlisting}
+fastqc \
+  --threads 1 \
+  raw_reads/${SAMPLE}_R1.fastq.gz \
+  raw_reads/${SAMPLE}_R2.fastq.gz
+\end{lstlisting}
+
+In this case, there is no benefit from processing files as pairs.
+In fact, separating the pairs should in principle allow more efficient 
+allocation of resources as we will end up with $2 \times$ the number of tasks,
+but each being half the size of the original.
+
+\begin{steps}
+In \texttt{main.nf} we start our process definition by giving it a name 
+and defining the input block 
+\begin{lstlisting}
+process fastqc {
+    
+  input:
+   file(reads) from readsForQcChannel
+
+}
+\end{lstlisting}
+
+We defined process input to be file taken from the \texttt{readsForQcChannel} which we assign to variable \texttt{reads}. We can now proceed to defining our script block.
+
+
+\begin{lstlisting}
+process fastqc {
+    
+  input:
+   file(reads) from readsForQcChannel
+
+  script:
+  """
+  fastqc --threads 1 ${reads}
+  """
+}
+\end{lstlisting}
+
+In the script block we address the input file via its variable name as \texttt{\$reads} or \texttt{\$\{reads\}}.
+
+\begin{bonus}
+Rather than fixing the number of threads inside the script block to 1, we could use the \texttt{task.cpus} variable. 
+
+\begin{questions}
+How can you set the value of the \texttt{task.cpus} variable? Hint look into \emph{process directives}.
+\begin{answer}
+\begin{lstlisting}
+process fastqc {
+  cpus 2
+    
+  input:
+   file(reads) from readsForQcChannel
+
+  script:
+  """
+  fastqc  --threads ${task.cpus} ${reads}
+  """
+}
+\end{lstlisting}
+\end{answer}
+\end{questions}
+
+\end{bonus}
+
+\begin{lstlisting}
+process fastqc {
+    
+  input:
+   file(reads) from readsForQcChannel
+
+  script:
+  """
+  fastqc  --threads ${task.cpus} ${reads}
+  """
+}
+\end{lstlisting}
+
+\begin{note}
+\begin{itemize}
+ \item 
+As you might have guessed, \texttt{\$\{task.cpus\}} is the number of logical cores assigned to a given process. This can be set using the \texttt{cpus} directive above the input block. The default is \texttt{cpus 1}.
+% \item The (optional) \texttt{tag} directive will help us to decern   tag { reads.name }
+\end{itemize}
+\end{note}
 
 
 %------------------------
@@ -496,10 +877,10 @@ tree data
 In this section you will learn how to
 
 \begin{itemize}
- \item  Read an input file into a NF \emph{channel}
- \item  Connect the created channel to NF \emph{process} input
- \item  Port an existing bash snippet into NF \emph{process} script block
- \item  Group \emph{process} output files and values in a \texttt{set} to be emitted through an output channel
+ \item  read an input file into a NF \emph{channel}
+ \item  connect the created channel to NF \emph{process} input
+ \item  port an existing bash snippet into NF \emph{process} script block
+ \item  group \emph{process} output files and values in a \texttt{set} to be emitted through an output channel
 \end{itemize}
 
 In the original bash script this task consists of a simple call to \texttt{bwa} with 
@@ -638,277 +1019,8 @@ The emitted set will consist of two elements
 \end{itemize}
 
 
-\subsection{Running the workflow (stub)}
 
 
-\begin{steps}
-\begin{lstlisting}
-nextflow run main.nf
-\end{lstlisting}
-\end{steps}
-
-\begin{warning}
-This is expected to fail.\\
-Unless all the software required by the pipeline (in this case - just \texttt{bwa}) is available on the \texttt{\$PATH},
-which we don't expect, the pipeline should terminate with an error.
-The output information may help you identify the cause. 
-Try to relate the error message to the relevant section of the main script (\texttt{main.nf}). 
-\end{warning}
-
-
-\begin{questions}
-Identify the exact \texttt{error}. 
-\begin{answer}
-The cause was likely ``\texttt{.command.sh: line 2: bwa: command not found}''. Example:
-
-\begin{lstlisting}
-[68/31190c] Submitted process > bwa_index (1)
-ERROR ~ Error executing process > 'bwa_index (1)'
-
-Caused by:
-  Process `bwa_index (1)` terminated with an error exit status (127)
-
-Command executed:
-
-  bwa index -a bwtsw reference.fasta.gz
-
-Command exit status:
-  127
-
-Command output:
-  (empty)
-
-Command error:
-  .command.sh: line 2: bwa: command not found
-
-Work dir:
-  /shared/training001/nextflow/example_workflow/work/68/31190cc4a8d0785dba721a3caebc46
-
-Tip: you can try to figure out what's wrong by changing to the process work dir and showing the script file named `.command.sh`
-
- -- Check '.nextflow.log' file for details
-\end{lstlisting}
-\end{answer}
-\end{questions}
-
-
-There are different ways in which we could ensure that the relevant software is available, for example using process 
-\emph{directives} at the top of each process definition. We could also use the opportunity to change the executor from local to Slurm, for example:
-\begin{lstlisting}
-process foo {
-  module 'samtools/1.9' 
-    executor 'slurm' 
-  //further code omitted 
-\end{lstlisting}
-
-This is a perfectly valid syntax, which can be convenient, particularly during pipeline development, 
-but for more portable workflows it is preferable to keep compute and software environment configuration 
-separate from pipeline logic -- in simple terms not in the workflow script (\texttt{main.nf}).
-
-\subsection{The config file(s) and profiles}
-
-Workflow configuration belongs in \texttt{nextflow.config} file. 
-Transferring the above mention \emph{directives} from process definitions in \texttt{main.nf} 
-to \texttt{nextflow.config} would make things slightly better, e.g.
-
-\begin{lstlisting}
-#nextflow.config
-
-process.executor = 'slurm' 
-process.module = 'samtools/1.9' 
-\end{lstlisting}
-
-or using the preferred syntax
-
-\begin{lstlisting}
-process {
-  executor = slurm
-  module = 'samtools/1.9'
-}
-\end{lstlisting}
-
-
-This is however still a bit rigid. 
-\begin{itemize}
-\item You may be developing your pipeline on a local machine or a server where software modules are not available. 
-\item If developing directly in the cluster environment, you may prefer your quick test runs to happen either on the head node or in an interactive session you are using, rather than always having jobs submitted to sit in the always-busy cluster queue.
-\end{itemize}
-
-Nextflow enables the definition of \emph{profiles} which make it easy to run a workflow 
-with different configuration settings, including, but not limited to executors and software environment.
-
-For our pipeline we have defined several \emph{profiles}, which allow us to execute the logic from \texttt{main.nf} while providing the required software either by creating a \texttt{conda} environment or by using Docker of Singularity containers where the conda environment has already been captured. 
-
-\subsubsection{Relevant profiles}
-
-
-Have a look inside \texttt{nextflow.config}, and locate the process definitions
-
-\begin{steps}
-\begin{lstlisting}
-less nextflow.config
-\end{lstlisting}
-\end{steps}
-
-The ones most immediately relevant are:
-
-\begin{lstlisting}
-profiles {
-  //EXECUTORS
-  slurm {
-    process {
-      executor = 'slurm'
-    }
-  }
-  //SOFTWARE
-  conda {
-    process {
-      conda = "$baseDir/conf/conda.yaml"
-    }
-  }
-  singularity {
-    process {
-      container = '/shared/.singularity/nextflow-embl-abr-webinar.simg' 
-    }
-    singularity {
-      enabled = true
-      autoMounts = true
-    }
-  }
-}
-\end{lstlisting}
-
-
-As you can see, Nextflow makes it really easy to define software environment via Singularity 
-or Conda\footnote{We also have a docker profile which you may find useful if you decide to run the workflow on your machine}. 
-
-
-Given that Singlularity is available on our cluster, we will use the \texttt{singularity} profile for software environment using \texttt{-profile singularity}. Combinations of profiles can be selected at runtime 
-so we will also use the \texttt{slurm} profile which will ensure the tasks are not executed on the head node but submitted to the cluster.
-
-In addition to this basic configuration, there are many setting that can and in some cases must be set -- refer to 
-\href{https://www.nextflow.io/docs/latest/executor.html}{executors section of Nextflow documentation}\footnote{\url{https://www.nextflow.io/docs/latest/executor.html}}. 
-For running real-life pipelines in a cluster environment you will also use 
-\href{https://www.nextflow.io/docs/latest/process.html#directives}{directives}\footnote{\url{https://www.nextflow.io/docs/latest/process.html\#directives}}
-controlling the resources (\texttt{cpus, memory, time}) requested for each job. Other directives relevant in HPC context might include \texttt{queue} and \texttt{scratch}.
-
-
-
-\begin{steps}
-\begin{lstlisting}
-# Load the Singularity module 
-# If it is unavailable contact the cluster sysadmin
-
-module load singularity-3.2.1-gcc-5.4.0-tn5ndnb
-
-# Run the workflow
-
-nextflow run main.nf -profile slurm,singularity
-\end{lstlisting}
-\end{steps}
-
-
-%\begin{questions}
-%\begin{answer}
-%\end{answer}
-%\end{questions}
-
-
-
-%------------------------
-\subsection{Implementing FastQC}
-%------------------------
-
-\begin{itemize}
- \item  Read multiple input files into a \emph{channel}
- \item  Restrict how many items are emitted through a \emph{channel}
-% \item  
-% \item  
-\end{itemize}
-
-Paste and save the following into a new file \texttt{getpairs.nf}
-\begin{lstlisting}
-// Channel reading our FASTQ files
-Channel.fromFilePairs("data/**_R{1,2}.fastq.gz")
-  .set { readPairsForQcChannel }
-
-// sneak-peak at what flows through our channel
-readPairsForQcChannel.view()
-\end{lstlisting}
-
-If you now run 
-
-\begin{steps}
-\begin{lstlisting}
-nextflow run main.nf getpairs.nf
-\end{lstlisting}
-\end{steps}
-
-You will see a long list of file pairs. One way to restrict the number of input files would be 
-
-Initially, we may want to restrict the number of file pairs being processed 
-e.g. by pointing to a specific file pair only,
-
-\begin{lstlisting}
-Channel.fromPath("data/raw_reads/Baxter_R{1,2}.fastq.gz")
-   .set { readPairsForQcChannel } 
-\end{lstlisting}
-
-or by using one of NF operators to limit the number of items emitted by the channel.
-Either \textbf{one} of \texttt{.take(1)}, \texttt{.first()} or \texttt{.last()} would suffice.  
-
-\begin{lstlisting}
-// Channel reading our FASTQ files
-Channel.fromPath("data/raw_reads/*.fastq.gz")
-  .take(1) 
-  .first() 
-  .last() 
-  .set { readsForQcChannel }
-
-// sneak-peak at what flows through our channel
-readsForQcChannel.view()
-\end{lstlisting}
-
-Now that we have our input channel ready and emitting, lets define a process
-to implement the original bash snippet.
-
-\begin{lstlisting}
-fastqc \
-  --threads 1 \
-  raw_reads/${SAMPLE}_R1.fastq.gz \
-  raw_reads/${SAMPLE}_R2.fastq.gz
-\end{lstlisting}
-
-In this case, there is no benefit from processing files as pairs.
-In fact, separating the pairs should in principle allow more efficient 
-allocation of resources as we will end up with $2 \times$ the number of tasks,
-but each being half the size of the original.
-
-
-
-\begin{lstlisting}
-process fastqc {
-    
-  input:
-   file(reads) from readsForQcChannel
-
-  output:
-    file('*') into fastqcRawResultsChannel
-
-  script:
-  """
-  fastqc  --threads ${task.cpus} ${reads}
-  """
-}
-\end{lstlisting}
-
-\begin{note}
-\begin{itemize}
- \item 
-As you might have guessed, \texttt{\$\{task.cpus\}} is the number of logical cores assigned to a given process. This can be set using the \texttt{cpus} directive above the input block. The default is \texttt{cpus 1}.
-% \item The (optional) \texttt{tag} directive will help us to decern   tag { reads.name }
-\end{itemize}
-\end{note}
 
 %------------------------
 \subsection{Implementing Trimmomatic}
