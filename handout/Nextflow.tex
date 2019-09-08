@@ -705,12 +705,12 @@ In this section you will learn how to
  \item View items emitted by a \emph{channel}
  \item Restrict how many items are emitted through a \emph{channel} using \emph{operators}
  \item Effortlessly parallelize the task by plugging a \emph{channel} into a \emph{process}
- \item Use variables pointing to emitted items within processes' script block
+ \item Reference emitted items within processes' script block
 \end{itemize}
 
+\begin{steps}
 Paste and save the following into a new file \texttt{main.nf}
 \begin{lstlisting}
-// Channel reading our FASTQ files
 Channel.fromPath("data/raw_reads/*.fastq.gz")
   .view()
 \end{lstlisting}
@@ -718,7 +718,7 @@ Channel.fromPath("data/raw_reads/*.fastq.gz")
 We create a (yet unnamed) channel and use the \texttt{view} \emph{operator} to
 print the names of emitted files to the terminal. If you now run 
 
-\begin{steps}
+
 \begin{lstlisting}
 nextflow run main.nf
 \end{lstlisting}
@@ -726,7 +726,7 @@ nextflow run main.nf
 
 You will see a long list of files being emitted by the channel. 
 
-While developing a workflow we tend to prefer to only use a mall subset of data. 
+While developing a workflow we tend to prefer to only use a small subset of data. 
 We could restrict the number of FASTQ files emitted by the channel 
 e.g.\ by pointing to a specific file or a subset of files, 
 in this case the two read files available for Baxter
@@ -737,11 +737,10 @@ Channel.fromPath("data/raw_reads/Baxter_R{1,2}.fastq.gz")
 \end{lstlisting}
 
 We can do better! Let's use one of NF operators capable of limiting the number of items emitted by the channel.
-Either \textbf{one} of \texttt{.first()}, \texttt{.last()} or \texttt{take(n)} will suffice.  
+Either \textbf{one} of \texttt{first()}, \texttt{last()} or \texttt{take(n)} will suffice.  
 
 
 \begin{lstlisting}
-// Channel reading our FASTQ files
 Channel.fromPath("data/raw_reads/*.fastq.gz")
   .take(1) 
   .first() 
@@ -750,18 +749,21 @@ Channel.fromPath("data/raw_reads/*.fastq.gz")
 \end{lstlisting}
 
 Having all three operators is redundant, we will stick with \texttt{take(1)},
+due to extra flexibility it gives us.
 The last thing to do is to assign our channel to a variable whose name we can use elsewhere in the script.
 The simplest form would be
 
 \begin{lstlisting}
 readsForQcChannel = Channel.fromPath("data/raw_reads/*.fastq.gz")
+  .take(1)
+  .view() 
 \end{lstlisting}
 
 But since we often chain multiple operations,
-the following syntax is preferred. 
+the following syntax is preferred due 
+to consistent left-to-right flow.
 
 \begin{lstlisting}
-// Channel reading our FASTQ files
 Channel.fromPath("data/raw_reads/*.fastq.gz")
   .take(1) 
   .view()
@@ -790,10 +792,10 @@ fastqc \
 
 In this case, there is no benefit from processing files as pairs.
 In fact, separating the pairs should in principle allow more efficient 
-allocation of resources as we will end up with $2 \times$ the number of tasks,
+allocation of resources as we will end up with twice the number of tasks,
 but each being half the size of the original.
 
-\begin{steps}
+
 In \texttt{main.nf} we start our process definition by giving it a name 
 and defining the input block 
 \begin{lstlisting}
@@ -827,7 +829,7 @@ In the script block we address the input file via its variable name as \texttt{\
 Rather than fixing the number of threads inside the script block to 1, we could use the \texttt{task.cpus} variable. 
 
 \begin{questions}
-How can you set the value of the \texttt{task.cpus} variable? Hint look into \emph{process directives}.
+How can you set the value of the \texttt{task.cpus} variable? Hint: look into \emph{process directives} documentation.
 \begin{answer}
 \begin{lstlisting}
 process fastqc {
@@ -844,29 +846,15 @@ process fastqc {
 \end{lstlisting}
 \end{answer}
 \end{questions}
-
 \end{bonus}
 
-\begin{lstlisting}
-process fastqc {
-    
-  input:
-   file(reads) from readsForQcChannel
-
-  script:
-  """
-  fastqc  --threads ${task.cpus} ${reads}
-  """
-}
-\end{lstlisting}
-
-\begin{note}
-\begin{itemize}
- \item 
-As you might have guessed, \texttt{\$\{task.cpus\}} is the number of logical cores assigned to a given process. This can be set using the \texttt{cpus} directive above the input block. The default is \texttt{cpus 1}.
-% \item The (optional) \texttt{tag} directive will help us to decern   tag { reads.name }
-\end{itemize}
-\end{note}
+%\begin{note}
+%\begin{itemize}
+% \item 
+%
+%% \item The (optional) \texttt{tag} directive will help us to decern   tag { reads.name }
+%\end{itemize}
+%\end{note}
 
 
 %------------------------
@@ -877,9 +865,9 @@ As you might have guessed, \texttt{\$\{task.cpus\}} is the number of logical cor
 In this section you will learn how to
 
 \begin{itemize}
- \item  read an input file into a NF \emph{channel}
- \item  connect the created channel to NF \emph{process} input
- \item  port an existing bash snippet into NF \emph{process} script block
+% \item  read an input file into a NF \emph{channel}
+% \item  connect the created channel to NF \emph{process} input
+% \item  port an existing bash snippet into NF \emph{process} script block
  \item  group \emph{process} output files and values in a \texttt{set} to be emitted through an output channel
 \end{itemize}
 
@@ -891,32 +879,13 @@ the input fie name hard-coded. % also used for the prefix of the output filename
 bwa index -a bwtsw references/reference.fasta.gz
 \end{lstlisting}
 
-
- 
 We start by creating a channel which pass the reference file to our indexing process. 
 
 \begin{lstlisting}
-Channel.fromPath('data/references/reference.fasta.gz')
-\end{lstlisting}
-
-%While developing, you could use the \texttt{.view()} operator for a sneak-peak 
-%at what items are emitted by a given channel.
-%
-%\begin{lstlisting}
-%Channel.fromPath('data/references/reference.fasta.gz').view()
-%\end{lstlisting}
-
-To be able to access the channel, you normally need to assign it to a variable.
-
-\begin{lstlisting}
 referencesChannel = Channel.fromPath('data/references/reference.fasta.gz') 
-\end{lstlisting}
 
-But since we often chain multiple operations, for example \\
-\texttt{oneChannel.filter(it.size > n).combine(anotherChannel).collect()},\\ 
-the following syntax is preferred.
+# or the equivalent
 
-\begin{lstlisting}
 Channel.fromPath('data/references/reference.fasta.gz').set { referencesChannel } 
 \end{lstlisting}
 
@@ -959,8 +928,9 @@ process bwa_index {
 %}
 %\end{lstlisting}
 
-That should be sufficient to run the indexing, but given that we want to use the generated index, 
-we also need to define the outputs for the process. The expected output files are:
+That should be sufficient to run the indexing, but given that we want to use the generated index,
+in another process, we also need to define the outputs for the current one. 
+The expected output files are:
 
 \begin{lstlisting}
 reference.fasta.gz.amb
@@ -970,14 +940,15 @@ reference.fasta.gz.pac
 reference.fasta.gz.sa
 \end{lstlisting}
 
-To declare these as outputs we could 
+To capture these as outputs we could simply declare that all (non-input)
+files constitute the desired output.
 
 \begin{lstlisting}
   output:
     file("*") into indexChannel 
 \end{lstlisting}
 
-We could be more explicit and declare that outputs are all (non-input)
+We could also be slightly more explicit and declare that outputs are all (non-input)
 files sharing a prefix
 
 \begin{lstlisting}
@@ -985,7 +956,7 @@ files sharing a prefix
     file("${ref}.*") into indexChannel 
 \end{lstlisting}
 
-or even painstakingly list all the expected files...
+or even painstakingly list all the expected files... not recommended.
 %and group them in a \emph{set} (in other words a tuple - an ordered list of elements).
 %
 %\begin{lstlisting}
@@ -1002,9 +973,9 @@ For example, to run \texttt{bwa} alignment later on, we will need to pass it
 the common prefix of the names of the index files. 
 
 In this case rather then simply outputting the index files,
-and than parsing the prefix out of the file name(s), 
+and then parsing the prefix out of the file name(s), 
 we opt to output our reference file name alongside the generated index file.
-To do that in a single emission we wrap these in a a \emph{set} 
+To do that in a single emission we wrap these in a \emph{set} 
 (in other words a tuple - an ordered list of elements).
 
 \begin{lstlisting}
@@ -1015,12 +986,33 @@ To do that in a single emission we wrap these in a a \emph{set}
 The emitted set will consist of two elements 
 \begin{itemize}
 \item The reference file name (String) 
-\item The list of index files (Not just file names -- Objects of class \texttt{java.nio.file.Path}).
+\item The list of index files (not just file names -- objects of class \texttt{java.nio.file.Path}).
 \end{itemize}
 
+This is our complete indexing process definition 
+\begin{lstlisting}
+process bwa_index {
+  
+  input:
+    file(ref) from referencesChannel
+  
+  output:
+    set val("${ref}"), file("*") into indexChannel 
+    
+  script:
+  """
+  bwa index -a bwtsw ${ref}
+  """
+}  
+\end{lstlisting}
 
+\begin{steps}
+Give it a whirl,
 
-
+\begin{lstlisting}
+nextflow run main.nf -resume -profile slurm,singularity
+\end{lstlisting}
+\end{steps}
 
 %------------------------
 \subsection{Implementing Trimmomatic}
@@ -1047,7 +1039,7 @@ The original bash implementation was as follows
       MINLEN:36
 \end{lstlisting}
 
-This time we have to process the reads as pairs so using \texttt{Channel.fromPath()} 
+This time we have to process the reads \textbf{as pairs} so using \texttt{Channel.fromPath()} 
 will not suffice. Conveniently, NF has been developed by bioinformaticians so 
 it smoothly handles paired files. 
 
@@ -1074,19 +1066,19 @@ after some re-formatting would be something like
 [
   Gladius, 
   [
-    /path/data/raw_reads/Gladius_R1.fastq.gz, 
-    /path/data/raw_reads/Gladius_R2.fastq.gz
+    /path/to/data/raw_reads/Gladius_R1.fastq.gz, 
+    /path/to/data/raw_reads/Gladius_R2.fastq.gz
   ]
 ]
 \end{lstlisting}
 
 The single emission consists of a set of two elements. 
 \begin{enumerate}
-\item The sample name (accession) i.e. the file names prefix captured by the \texttt{*} glob. 
+\item The sample name (accession) i.e. the file names prefix captured by the \texttt{`*'} glob. 
 \item The list of two FASTQ files 
 \end{enumerate}
 
-One more thing we need is a file containing the adapter sequences for trimmomatic.
+One more thing we need, is a file containing the adapter sequences for trimmomatic.
 This could be done in a number of ways, but it is best to stick to the dataflow paradigm 
 and set-up another channel for that.
 
@@ -1095,8 +1087,9 @@ Channel.fromPath('data/misc/trimmomatic_adapters/TruSeq3-PE.fa')
   .set{ adaptersChannel }
 \end{lstlisting}
 
-We now have to input channels, but how do we handle multiple input channels? 
-If we just declare both separately 
+We now have two input channels, but how do we handle multiple input channels? 
+
+If we just declare each separately 
 
 \begin{lstlisting}
 process trimmomatic {
@@ -1108,10 +1101,11 @@ process trimmomatic {
 
 This would work perfectly fine... but only for the first pair of reads. 
 There is only a single adapters file emitted by the \texttt{adaptersChannel}, 
-so once this channel no longer emits outputs, the process will not run again.
+so once this channel no longer emits outputs, the process will not run again
+and will never read the next pair of FASTQ files from \texttt{readPairsForTrimmingChannel}.
 
 What we really want is for the adapters file to be used in combination with 
-each pair of FASTQ files. Enter the \texttt{.combine()} operator.
+each pair of FASTQ files. Enter the \texttt{combine()} operator.
 
 \begin{lstlisting}
 process trimmomatic_pe {
@@ -1194,7 +1188,7 @@ process trimmomatic_pe {
 Now is your opportunity to put into practice what you have learnt from the above walk-
 through of implementing FastQC and Trimmomatic commands. Your task is to implement
 the \texttt{bwa mem} command in a Nextflow process.
-Here are some questions to get you thinking as you try to implement this rule:
+
 
 The relevant snippet from the bash pipeline is as follows 
 \begin{lstlisting}
@@ -1205,19 +1199,34 @@ The relevant snippet from the bash pipeline is as follows
   > mapped/${SAMPLE}.bam
 \end{lstlisting}
 
+Here are some questions to get you thinking 
+
 \begin{questions}
 The mapping process requires and index comprised of several files but takes their common prefix (basename) 
-as argument. How can you pass that prefix to the command?
+as argument. How can you pass that prefix to the command?\\
 \begin{answer}
 You \emph{could} hard-code it (not a good practice) or parse it out from the index file names. 
 \end{answer}
-Can you do it without hard-coding it or having to parse it out from the input file name(s)?
+Can you do it without hard-coding it or having to parse it out from the input file name(s)?\\
 \begin{answer}
-Our indexing process, in addition to the index files also outputs the prefix used when building the index. 
+Our indexing process, in addition to the index files also outputs the prefix used when building the index. \\
 \end{answer}
-How do you make sure that each instance of the process - and not just the first one - gets the index files in \emph{(cough)} combination with a pair of FASTQ files?
+How do you make sure that each instance of the process - and not just the first one - gets the index files in \emph{(cough)} combination with a pair of FASTQ files?\\
 \begin{answer}
 Use the \emph{combine} operator to combine the \texttt{indexChannel} with the \texttt{trimmedReadsChannel}.
+\begin{lstlisting}
+process bwa_mem {
+  input:
+    
+  output:
+    
+  script:
+  """
+  bwa mem -t ${task.cpus} ${ref} ${reads} \
+  | samtools view -b > ${accession}.bam
+  """
+}
+\end{lstlisting}
 \end{answer}
 \begin{answer}
 \end{answer}
@@ -1228,26 +1237,15 @@ Use the \emph{combine} operator to combine the \texttt{indexChannel} with the \t
 \subsection{Adding New Samples}
 %------------------------
 
-Since we had to stop the channel from sucking up all the samples by applying the take operator...
+Since we had to stop the channel from sucking up all the samples by applying the take operator 
+we expect you may already know how to make sure all samples are processed.
 
 
 
 
-We are going to work with an example Nextflow workflow to demonstrate how they are run, 
-improve your understanding of \emph{processes} and \emph{channels} and finally introduce\ \emph{operators}, which are applied to channels to shape and direct flowing data.
-
-
-
-
-
-
-
-
-
-
-
-
-
+%
+%We are going to work with an example Nextflow workflow to demonstrate how they are run, 
+%improve your understanding of \emph{processes} and \emph{channels} and finally introduce\ \emph{operators}, which are applied to channels to shape and direct flowing data.
 
 
 
@@ -1306,6 +1304,73 @@ Identify and investigate hidden file (starting with dot) containing the executed
 
 \end{advanced}
 
+
+
+
+\begin{bonus}
+For an optional exercise you may try to re-run the workflow with \texttt{conda}.
+For that, you'll need to find and load a conda module before re-running the workflow with appropriate profile. Don't forget to use the \texttt{-resume} flag.
+\begin{answer}
+\begin{lstlisting}
+# Find the appropriate module name
+module av -l 2>&1 | grep conda
+
+# Load the module
+module load miniconda3-4.6.14-gcc-5.4.0-kkzv7zk
+
+# Run with conda
+nextflow run main.nf -profile conda,slurm --take all -resume
+
+\end{lstlisting}
+\end{answer}
+
+If you remembered to use \texttt{-resume}, why do you think it appeared to not make a difference?
+
+\begin{answer}
+We have switched from singularity to conda so the software environment has changed.  
+\end{answer}
+
+
+\end{bonus}
+
+
+
+
+%\begin{figure}[H]
+%\centering
+%\includegraphics[width=\textwidth]{handout/flowchart.png}
+%\caption{The example workflow}
+%\label{fig:dag}
+%\end{figure}
+%
+%
+%\begin{questions}
+%Investigate \texttt{main.nf} alongside Figure~\ref{fig:dag}. 
+%
+%Which \href{https://www.nextflow.io/docs/latest/operator.html}{nextflow operators}\footnote{\url{https://www.nextflow.io/docs/latest/operator.html}}, in addition to the previously discussed, are used and for what purposes? 
+%
+%\begin{answer}
+%The \texttt{.combine()} operator outputs all combinations of items emitted by two channels. This results with a downstream process to be executed for each such combination. So e.g. \texttt{bwa\_mem} will be executed for\\ $(reference, accession_1),(reference, accession_2),..,(reference, accession_n)$.
+%
+%The \texttt{.collect()} operator collects all the items emitted by a channel returns the resulting \texttt{List} as a single emission. This is required e.g.\ if a process needs to be executed once with all the samples as input.
+%\end{answer}
+%
+%\end{questions}
+
+
+\subsection{Workflow outputs}
+
+We now now each task is nicely isolated in a separate sub-directory under \texttt{work}, but how do I find my results? Was it \texttt{work/a7:fc9339a827fb4b34d2408e1c3ee29c} or maybe \texttt{work/3c:8fdf958e96b448ecb83bd7806af382}? This should be handled by applying the \href{https://www.nextflow.io/docs/latest/process.html#publishdir}{\texttt{publishDir} directive}\footnote{\url{https://www.nextflow.io/docs/latest/process.html\#publishdir}} to selected processes. As with other directives, this can be included at the top of the process block or in a configuration file using \href{https://www.nextflow.io/docs/latest/config.html#process-selectors}{process selectors}\footnote{\url{https://www.nextflow.io/docs/latest/config.html\#process-selectors}} to apply the directive to one or more relevant process. To keep things tidy-ish, we define the publishing of the outputs in a separate file 
+which we \texttt{includeConfig 'conf/publish.config'} in \texttt{nextflow.config}. 
+
+In \texttt{conf/publish.config} we only really use the \texttt{withName} selectors.
+The alternative \texttt{withLabel} selectors are convenient e.g.\ when outputs of multiple 
+processes are to be gather in one location, in which case we attach the same \texttt{label} to each of those processes.
+
+%\begin{bonus}
+%In \texttt{conf/publish.config} we only really use the \texttt{withName} selectors. 
+%
+%\end{bonus}
 
 \subsection{Cluster run - all accessions}
 
@@ -1378,68 +1443,6 @@ squeue
 
 \end{note}
 
-\begin{bonus}
-For an optional exercise you may try to re-run the workflow with \texttt{conda}.
-For that, you'll need to find and load a conda module before re-running the workflow with appropriate profile. Don't forget to use the \texttt{-resume} flag.
-\begin{answer}
-\begin{lstlisting}
-# Find the appropriate module name
-module av -l 2>&1 | grep conda
-
-# Load the module
-module load miniconda3-4.6.14-gcc-5.4.0-kkzv7zk
-
-# Run with conda
-nextflow run main.nf -profile conda,slurm --take all -resume
-
-\end{lstlisting}
-\end{answer}
-
-If you remembered to use \texttt{-resume}, why do you think it appeared to not make a difference?
-
-\begin{answer}
-We have switched from singularity to conda so the software environment has changed.  
-\end{answer}
-
-
-\end{bonus}
-
-
-%\begin{figure}[H]
-%\centering
-%\includegraphics[width=\textwidth]{handout/flowchart.png}
-%\caption{The example workflow}
-%\label{fig:dag}
-%\end{figure}
-%
-%
-%\begin{questions}
-%Investigate \texttt{main.nf} alongside Figure~\ref{fig:dag}. 
-%
-%Which \href{https://www.nextflow.io/docs/latest/operator.html}{nextflow operators}\footnote{\url{https://www.nextflow.io/docs/latest/operator.html}}, in addition to the previously discussed, are used and for what purposes? 
-%
-%\begin{answer}
-%The \texttt{.combine()} operator outputs all combinations of items emitted by two channels. This results with a downstream process to be executed for each such combination. So e.g. \texttt{bwa\_mem} will be executed for\\ $(reference, accession_1),(reference, accession_2),..,(reference, accession_n)$.
-%
-%The \texttt{.collect()} operator collects all the items emitted by a channel returns the resulting \texttt{List} as a single emission. This is required e.g.\ if a process needs to be executed once with all the samples as input.
-%\end{answer}
-%
-%\end{questions}
-
-
-\subsection{Workflow outputs}
-
-We now now each task is nicely isolated in a separate sub-directory under \texttt{work}, but how do I find my results? Was it \texttt{work/a7:fc9339a827fb4b34d2408e1c3ee29c} or maybe \texttt{work/3c:8fdf958e96b448ecb83bd7806af382}? This should be handled by applying the \href{https://www.nextflow.io/docs/latest/process.html#publishdir}{\texttt{publishDir} directive}\footnote{\url{https://www.nextflow.io/docs/latest/process.html\#publishdir}} to selected processes. As with other directives, this can be included at the top of the process block or in a configuration file using \href{https://www.nextflow.io/docs/latest/config.html#process-selectors}{process selectors}\footnote{\url{https://www.nextflow.io/docs/latest/config.html\#process-selectors}} to apply the directive to one or more relevant process. To keep things tidy-ish, we define the publishing of the outputs in a separate file 
-which we \texttt{includeConfig 'conf/publish.config'} in \texttt{nextflow.config}. 
-
-In \texttt{conf/publish.config} we only really use the \texttt{withName} selectors.
-The alternative \texttt{withLabel} selectors are convenient e.g.\ when outputs of multiple 
-processes are to be gather in one location, in which case we attach the same \texttt{label} to each of those processes.
-
-%\begin{bonus}
-%In \texttt{conf/publish.config} we only really use the \texttt{withName} selectors. 
-%
-%\end{bonus}
 
 \section{Modify/extend the workflow}
 
