@@ -110,6 +110,12 @@ First up, lets connect to the head node of the HPC cluster using \texttt{ssh}.
 
 \subsection{Install nextflow}
 
+\subsection{Standard installation}
+
+\begin{warning}
+
+Do NOT run the following commands! 
+This is provided for future reference so you know how to Install Nextflow on another system. 
 
 \begin{steps}
 \begin{lstlisting}
@@ -141,6 +147,81 @@ mv ./nextflow $HOME/bin
 
 You should now be able to run \texttt{nextflow} without specifying the location of the binary.
 
+\end{warning}
+
+
+\subsection{Conda installation}
+
+\begin{steps}
+%In case of problems with the above install procedure we will use a version pre-installed with conda
+\begin{lstlisting}
+# Load miniconda
+module load \
+  miniconda3-4.6.14-gcc-5.4.0-kkzv7zk
+
+#####
+# One-time commands
+#####
+# Integrate conda into bash
+conda init bash
+. ${HOME}/.bashrc
+
+# Change the default location into which conda saves packages
+# and environments
+conda config --prepend pkgs_dirs /shared/${USER}/.conda/pkgs
+conda config --prepend envs_dirs /shared/${USER}/.conda/envs
+
+# Change the default channels used for finding software and
+# resolving dependencies
+conda config --add channels defaults
+conda config --add channels bioconda
+conda config --add channels conda-forge
+#####
+\end{lstlisting}
+
+\begin{warning}
+
+Do NOT run the following command! This is provided for future reference so you know how to Install Nextflow on another system using conda. Rather than
+creating the conda environment from scratch, we'll simply copy a pre-existing directory so we save time, and possible headaches.
+
+\begin{lstlisting}
+# Install nextflow using conda
+conda create \
+  --name nextflow \
+  --yes \
+  snakemake=${NEXTFLOW_VERSION:-19.04.0}
+\end{lstlisting}
+
+Nextflow installation is now complete.
+
+\end{warning}
+
+
+
+Now simply copy the following \texttt{.conda} directory and you
+will have Nextflow setup and ready to go:
+
+\begin{lstlisting}
+mkdir --parents /shared/${USER}
+cp --recursive \
+  /shared/ubuntu/.conda \
+  /shared/${USER}/
+\end{lstlisting}
+
+All that is left to do is to activate the environment which will make \texttt{nextflow} available on the command line:
+
+\begin{lstlisting}
+# Activate the newly created conda environment
+conda activate nextflow
+\end{lstlisting}
+
+\end{steps}
+
+
+
+
+
+
 For the duration of the workshop we may fix the version of nextflow we will use, 
 and also opt for simpler but more verbose terminal logging 
 which may be more useful when you get started with Nextflow 
@@ -164,7 +245,7 @@ To revert to the default logging you can either change the value of the environm
 
 \section{Running Nextflow}
 
-We start with Nextflow take on Hellow world.
+We start with Nextflow take on `Hellow world'%, which illustrates how Nextflow naturally parallelizes
 
 \subsection{Hello (nextflow) world!}
 
@@ -203,6 +284,7 @@ Run the \texttt{main.nf} script and observe the terminal output
 nextflow run main.nf 
 \end{lstlisting}
 
+You should see some generic run-time information as well as 
 
 Run the hello script again a few times and observe the effect of using the \texttt{-resume} flag
 
@@ -357,7 +439,8 @@ We would now like each task to be submitted as a batch job for execution on one 
 Thanks to Nextflow's out-of-the-box support for different compute environments, 
 it only requires changing the process executor from the default \texttt{local} to \texttt{slurm}.
 This could be done via configuration files (more about that later) or using the directive \texttt{executor `slurm'} in the process definition. 
-However, for our simple use-case it should suffice to use the \texttt{NXF\_EXECUTOR} environmental variable.
+However, for our simple use-case it should suffice to use the \texttt{NXF\_EXECUTOR} environmental variable. Try that without \texttt{-resume}.
+
 
 \begin{steps}
 \begin{lstlisting}
@@ -402,13 +485,13 @@ NXF_EXECUTOR=slurm nextflow run main.nf
 \end{lstlisting}
 \end{steps}
 
-The messages printed to the terminal should by each task should now include the name of the executor being used and the name of the compute node on which the task was executed.\\
+The messages printed to the terminal by each task should now include the name of the executor being used and the name of the compute node on which the task was executed.\\
 
 
 \begin{note}
 Nextflow facilitates but does not enforce separation of workflow logic from the configuration
 of compute and software environments as well as from other properties of the workflow.  
-As such, you \textit{could} get by developing nextflow workflows without worrying about that 
+As such, you \textit{could} develop nextflow workflows without worrying about that 
 aspect -- but you would be missing a lot in terms of flexibility, extensibility, portability and more.
 
 Nextflow looks for workflow configuration primarily in \texttt{nextflow.config} file, and additional config files can be included. Unsurprisingly the `hello' example does not require much configuration,
@@ -455,11 +538,12 @@ Start by cloning the workflow repository and moving to the directory.
 \begin{lstlisting}
 mkdir -p /shared/${USER}/nextflow
 cd /shared/${USER}/nextflow
-git clone https://github.com/csiro-crop-informatics/nextflow-embl-abr-webinar.git example_workflow
-cd example_workflow
-git checkout workshop
+git clone https://github.com/rsuchecki/nextflow-walkthrough.git 
+cd nextflow-walkthrough
 \end{lstlisting}
 \end{steps}
+
+
 
 %------------------------
 \subsection{Getting the Data}
@@ -677,6 +761,12 @@ nextflow run versions.nf -profile slurm,singularity
 \end{steps}
 
 
+\begin{note}
+Setting up profiles and keeping configuration separate from the main script is an upfront investment
+which will benefit you many times over. Many aspects of the configuration are consistent across quite different workflows 
+so you get to re-use and refine them with each new pipeline you work on. This feeds back to your workflows being more portable and robust. 
+\end{note}
+
 %\begin{questions}
 %\begin{answer}
 %\end{answer}
@@ -709,7 +799,7 @@ This will provide you with a foundation for you to be able to port your own work
 In this section you will learn how to 
 
 \begin{itemize}
- \item Read multiple input files into a \emph{channel}
+ \item Read input files into a \emph{channel}
  \item View items emitted by a \emph{channel}
  \item Restrict how many items are emitted through a \emph{channel} using \emph{operators}
  \item Effortlessly parallelize the task by plugging a \emph{channel} into a \emph{process}
@@ -856,6 +946,66 @@ process fastqc {
 \end{questions}
 \end{bonus}
 
+
+We should now be able to run fastqc on a single FASTQ file
+
+\begin{steps}
+\begin{lstlisting}
+nextflow run main.nf -profile slurm,singularity -resume
+\end{lstlisting}
+\end{steps}
+
+How about running on a handful of samples? We could simply increase the number in our \texttt{.take(1)} call, but rather than hard-coding that, we can use command line arguments. It is a good practice to set a default value either in \texttt{nextflow.config} or in \texttt{main.nf}.
+
+\begin{lstlisting}
+params.subset = 1
+
+Channel.fromPath("data/raw_reads/*.fastq.gz")
+  .take( params.subset )
+  .set { readsForQcChannel }
+\end{lstlisting}
+
+No run the workflow for a subset of 5 FASTQ files
+
+\begin{steps}
+\begin{lstlisting}
+nextflow run main.nf -profile slurm,singularity -resume --subset 5
+\end{lstlisting}
+\end{steps}
+
+\begin{bonus}
+\begin{questions}
+How would can we run it for all samples?
+\begin{answer}
+The \emph{take} operator returns all emissions when set to -1, 
+so \texttt{--subset -1} should do it. If we'd rather have \texttt{--subset all},
+then we modify or code: 
+\begin{lstlisting}
+.take ( params.subset == all ? -1 : params.subset ) 
+\end{lstlisting}
+\end{answer}
+\end{questions}
+
+\end{bonus}
+
+\begin{note}
+If the above tasks caused you some un-recoverable issues you can rename or delete your main.nf and check-out a revision where the above steps have been captured.
+\begin{lstlisting}
+mv main.nf myfastqc.nf
+git checkout fastqc
+\end{lstlisting}
+\end{note}
+
+You should now be able to 
+
+\begin{itemize}
+ \item Read input files into a \emph{channel}
+ \item View items emitted by a \emph{channel}
+ \item Restrict how many items are emitted through a \emph{channel} using \emph{operators}
+ \item Effortlessly parallelize the task by plugging a \emph{channel} into a \emph{process}
+ \item Reference emitted items within processes' script block
+\end{itemize}
+
 %\begin{note}
 %\begin{itemize}
 % \item 
@@ -863,8 +1013,6 @@ process fastqc {
 %% \item The (optional) \texttt{tag} directive will help us to decern   tag { reads.name }
 %\end{itemize}
 %\end{note}
-
-
 %------------------------
 \subsection{Implementing BWA Indexing}
 %------------------------
@@ -900,8 +1048,7 @@ Channel.fromPath('data/references/reference.fasta.gz').set { referencesChannel }
 We can now move on to defining the process which will \emph{consume} the \texttt{referencesChannel}.
 
 The bare-minimum would probably be a process definition with 
-* an \texttt{input} block
-* a \texttt{script} block
+an \texttt{input} block and a \texttt{script} block.
 
 \begin{lstlisting}
 process bwa_index {
@@ -1014,13 +1161,24 @@ process bwa_index {
 }  
 \end{lstlisting}
 
-\begin{steps}
-Give it a whirl,
+You could temporarily add  \texttt{indexChannel.view()} to see how the output looks. 
 
+
+\begin{steps}
+Check if nothing is broken 
 \begin{lstlisting}
 nextflow run main.nf -resume -profile slurm,singularity
 \end{lstlisting}
 \end{steps}
+
+\begin{note}
+If the above tasks caused you some un-recoverable issues you can rename or delete your main.nf and check-out a revision where the above steps have been captured.
+\begin{lstlisting}
+mv main.nf myindexing.nf
+git checkout index
+\end{lstlisting}
+\end{note}
+
 
 %------------------------
 \subsection{Implementing Trimmomatic}
@@ -1082,7 +1240,7 @@ after some re-formatting would be something like
 
 The single emission consists of a set of two elements. 
 \begin{enumerate}
-\item The sample name (accession) i.e. the file names prefix captured by the \texttt{`*'} glob. 
+\item The sample name (accession) i.e. the shared part of the file names captured by the \texttt{`*'} glob. 
 \item The list of two FASTQ files 
 \end{enumerate}
 
@@ -1155,11 +1313,6 @@ is straightforward.
 
 \begin{lstlisting}
 process trimmomatic_pe {
-
-  input:
-    set file(adapters), val(accession), file(reads) 
-      from adaptersChannel.combine(readPairsForTrimmingChannel)
-
   input:
     set file(adapters), val(accession), file(reads) from adaptersChannel.combine(readPairsForTrimmingChannel)
 
@@ -1169,18 +1322,18 @@ process trimmomatic_pe {
   script:
   """
   trimmomatic PE \
-    ${reads} \
-    R1.paired.fastq.gz \
-    R1.unpaired.fastq.gz \
-    R2.paired.fastq.gz \
-    R2.unpaired.fastq.gz \
-    ILLUMINACLIP:${adapters}:2:30:10:3:true \
-    LEADING:2 \
-    TRAILING:2 \
-    SLIDINGWINDOW:4:15 \
-    MINLEN:36 \
-    -Xms256m \
-    -Xmx256m
+  ${reads} \
+  R1.paired.fastq.gz \
+  R1.unpaired.fastq.gz \
+  R2.paired.fastq.gz \
+  R2.unpaired.fastq.gz \
+  ILLUMINACLIP:${adapters}:2:30:10:3:true \
+  LEADING:2 \
+  TRAILING:2 \
+  SLIDINGWINDOW:4:15 \
+  MINLEN:36 \
+  -Xms256m \
+  -Xmx256m
   """
 }
 \end{lstlisting}
@@ -1210,7 +1363,7 @@ The relevant snippet from the bash pipeline is as follows
 Here are some questions to get you thinking 
 
 \begin{questions}
-The mapping process requires and index comprised of several files but takes their common prefix (basename) 
+The mapping process requires an index comprised of several files but takes their common prefix (basename) 
 as argument. How can you pass that prefix to the command?\\
 \begin{answer}
 You \emph{could} hard-code it (not a good practice) or parse it out from the index file names. 
@@ -1327,7 +1480,7 @@ module av -l 2>&1 | grep conda
 module load miniconda3-4.6.14-gcc-5.4.0-kkzv7zk
 
 # Run with conda
-nextflow run main.nf -profile conda,slurm --take all -resume
+nextflow run main.nf -profile conda,slurm --take -1 -resume
 
 \end{lstlisting}
 \end{answer}
@@ -1368,62 +1521,64 @@ We have switched from singularity to conda so the software environment has chang
 
 \subsection{Workflow outputs}
 
-We now now each task is nicely isolated in a separate sub-directory under \texttt{work}, but how do I find my results? Was it \texttt{work/a7:fc9339a827fb4b34d2408e1c3ee29c} or maybe \texttt{work/3c:8fdf958e96b448ecb83bd7806af382}? This should be handled by applying the \href{https://www.nextflow.io/docs/latest/process.html#publishdir}{\texttt{publishDir} directive}\footnote{\url{https://www.nextflow.io/docs/latest/process.html\#publishdir}} to selected processes. As with other directives, this can be included at the top of the process block or in a configuration file using \href{https://www.nextflow.io/docs/latest/config.html#process-selectors}{process selectors}\footnote{\url{https://www.nextflow.io/docs/latest/config.html\#process-selectors}} to apply the directive to one or more relevant process. To keep things tidy-ish, we define the publishing of the outputs in a separate file 
-which we \texttt{includeConfig 'conf/publish.config'} in \texttt{nextflow.config}. 
+We now now each task is nicely isolated in a separate sub-directory under \texttt{work}, but how do I find my results? Was it \texttt{work/a7:fc9339a827fb4b34d2408e1c3ee29c} or maybe \texttt{work/3c:8fdf958e96b448ecb83bd7806af382}? This should be handled by applying the \href{https://www.nextflow.io/docs/latest/process.html#publishdir}{\texttt{publishDir} directive}\footnote{\url{https://www.nextflow.io/docs/latest/process.html\#publishdir}} to selected processes. As with other directives, this can be included at the top of the process block or in a configuration file using \href{https://www.nextflow.io/docs/latest/config.html#process-selectors}{process selectors}\footnote{\url{https://www.nextflow.io/docs/latest/config.html\#process-selectors}} to apply the directive to one or more relevant process. 
 
-In \texttt{conf/publish.config} we only really use the \texttt{withName} selectors.
-The alternative \texttt{withLabel} selectors are convenient e.g.\ when outputs of multiple 
-processes are to be gather in one location, in which case we attach the same \texttt{label} to each of those processes.
+%To keep things tidy-ish, we define the publishing of the outputs in a separate file 
+%which we \texttt{includeConfig 'conf/publish.config'} in \texttt{nextflow.config}. 
+
+%In \texttt{conf/publish.config} we only really use the \texttt{withName} selectors.
+%The alternative \texttt{withLabel} selectors are convenient e.g.\ when outputs of multiple 
+%processes are to be gather in one location, in which case we attach the same \texttt{label} to each of those processes.
 
 %\begin{bonus}
 %In \texttt{conf/publish.config} we only really use the \texttt{withName} selectors. 
 %
 %\end{bonus}
 
-\subsection{Cluster run - all accessions}
-
-We have successfully submitted workflow to the cluster. 
-
-To be sure, feel free to re-run it again (and again, and again...) 
-with \texttt{-resume} to avoid wasting CPU cycles.
-
-\begin{steps}
-\begin{lstlisting}
-nextflow run main.nf -profile slurm,singularity -resume
-\end{lstlisting}
-\end{steps}
-
-If all went well, the workflow successfully processed a single accession, 
-let's have a closer look at the script to better understand how it handles 
-the inputs before we proceed to run it on all the accessions.
-
-\begin{questions}
-In \texttt{main.nf} we create a channel which reads pairs of FASTQ files from a sub-directory of the \texttt{./data}. We then apply some operators. 
-\begin{verbatim}
-Channel.fromFilePairs("data/${region}/*_R{1,2}.fastq.gz")
-  .take ( params.take == "all" ? -1 : params.take ) 
-  .into { readPairsChannelA; readPairsChannelB } 
-\end{verbatim}
-1. Identify the two operators, refer to 
-\href{https://www.nextflow.io/docs/latest/operator.html}{nextflow documentation}\footnote{\url{https://www.nextflow.io/docs/latest/operator.html}}
-as required and explain the purpose of each of the two operators.\\
-\begin{answer}
-\texttt{.take($n$)} limits the number of emissions from the channel to the first $n$ items. \\
-\texttt{.into\{ $ch_1;ch_2;...;ch_n$ \}} creates channels $ch_1,ch_2,...,ch_n$ and connects source channel to the newly created channels, so that every emission is sent through each new channel.
-\end{answer}
-
-2. How can you run the workflow for more than one accession? How about all of them? Recall that workflow parameters use double-dash syntax. Run the relevant commands.  
-\begin{answer}
-\begin{lstlisting}
-nextflow run main.nf -profile slurm,singularity -resume --take 2
-nextflow run main.nf -profile slurm,singularity -resume --take all
-\end{lstlisting}
-\end{answer}
-%3. Investigate \texttt{main.nf} to identify the processes which consume \texttt{readPairsChannelA} and \texttt{readPairsChannelB}. \\
+%\subsection{Cluster run - all accessions}
 %
-%Q????
+%We have successfully submitted workflow to the cluster. 
 %
-\end{questions}
+%To be sure, feel free to re-run it again (and again, and again...) 
+%with \texttt{-resume} to avoid wasting CPU cycles.
+%
+%\begin{steps}
+%\begin{lstlisting}
+%nextflow run main.nf -profile slurm,singularity -resume
+%\end{lstlisting}
+%\end{steps}
+%
+%If all went well, the workflow successfully processed a single accession, 
+%let's have a closer look at the script to better understand how it handles 
+%the inputs before we proceed to run it on all the accessions.
+%
+%\begin{questions}
+%In \texttt{main.nf} we create a channel which reads pairs of FASTQ files from a sub-directory of the \texttt{./data}. We then apply some operators. 
+%\begin{verbatim}
+%Channel.fromFilePairs("data/${region}/*_R{1,2}.fastq.gz")
+%  .take ( params.take == "all" ? -1 : params.take ) 
+%  .into { readPairsChannelA; readPairsChannelB } 
+%\end{verbatim}
+%1. Identify the two operators, refer to 
+%\href{https://www.nextflow.io/docs/latest/operator.html}{nextflow documentation}\footnote{\url{https://www.nextflow.io/docs/latest/operator.html}}
+%as required and explain the purpose of each of the two operators.\\
+%\begin{answer}
+%\texttt{.take($n$)} limits the number of emissions from the channel to the first $n$ items. \\
+%\texttt{.into\{ $ch_1;ch_2;...;ch_n$ \}} creates channels $ch_1,ch_2,...,ch_n$ and connects source channel to the newly created channels, so that every emission is sent through each new channel.
+%\end{answer}
+%
+%2. How can you run the workflow for more than one accession? How about all of them? Recall that workflow parameters use double-dash syntax. Run the relevant commands.  
+%\begin{answer}
+%\begin{lstlisting}
+%nextflow run main.nf -profile slurm,singularity -resume --take 2
+%nextflow run main.nf -profile slurm,singularity -resume --take all
+%\end{lstlisting}
+%\end{answer}
+%%3. Investigate \texttt{main.nf} to identify the processes which consume \texttt{readPairsChannelA} and \texttt{readPairsChannelB}. \\
+%%
+%%Q????
+%%
+%\end{questions}
 
 \subsubsection{Monitoring your jobs on our cluster}
 
@@ -1510,9 +1665,7 @@ don't forget to modify your process configuration to request 2 cpus per task.
 
 \subsection{Disconnected from the cluster?}  
 
-\subsection{Missing modules - new shell session?}
-
-
+\subsection{New shell session?}
 
 Make sure all the required modules are loaded. 
 
@@ -1531,5 +1684,13 @@ module load miniconda3-4.6.14-gcc-5.4.0-kkzv7zk
 \end{steps}
 
 
+Fix Nextflow version to the one used throughout the workshop and switch ansi logging off.
+
+\begin{steps}
+\begin{lstlisting}
+export NXF_VER=19.04.0
+export NXF_ANSI_LOG=false
+\end{lstlisting}
+\end{steps}
 
 
