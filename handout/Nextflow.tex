@@ -738,7 +738,7 @@ process {
         time = 1.m
         memory = 256.MB        
     }
-    withLabel: slow_as_loops_in_R {
+    withLabel: snail {
         time = 48.h 
     }
 }
@@ -1424,18 +1424,25 @@ The relevant snippet from the bash pipeline is as follows
 Here are some questions to get you thinking 
 
 \begin{questions}
+
 The mapping process requires an index comprised of several files but takes their common prefix (basename) 
 as argument. How can you pass that prefix to the command?\\
+
 \begin{answer}
 You \emph{could} hard-code it (not a good practice) or parse it out from the index file names. 
 \end{answer}
+
 Can you do it without hard-coding it or having to parse it out from the input file name(s)?\\
+
 \begin{answer}
 Our indexing process, in addition to the index files also outputs the prefix used when building the index. \\
 \end{answer}
+
 How do you make sure that each instance of the process - and not just the first one - gets the index files in \emph{(cough)} combination with a pair of FASTQ files?\\
+
 \begin{answer}
 Use the \emph{combine} operator to combine the \texttt{indexChannel} with the \texttt{trimmedReadsChannel}.
+
 \begin{lstlisting}
 process bwa_mem {
   input:
