@@ -108,6 +108,8 @@ First up, lets connect to the head node of the HPC cluster using \texttt{ssh}.
 
 \end{steps}
 
+\newpage 
+
 \subsection{Install nextflow}
 
 \subsection{Standard installation}
@@ -115,9 +117,8 @@ First up, lets connect to the head node of the HPC cluster using \texttt{ssh}.
 \begin{warning}
 
 Do NOT run the following commands! 
-This is provided for future reference so you know how to Install Nextflow on another system. 
+This is provided for future reference so you know how to install Nextflow on another system. 
 
-\begin{steps}
 \begin{lstlisting}
 # Load the Java module on your cluster
 # If it's unavailable contact the cluster sysadmin
@@ -129,7 +130,6 @@ curl -s https://get.nextflow.io | bash
 # You should now be able to run it
 ./nextflow -version
 \end{lstlisting}
-\end{steps}
 
 The installation should have placed the executable in your working directory.
 It is preferable to move the executable to a directory accessible via \texttt{\$PATH}, 
@@ -138,12 +138,10 @@ to type the full \texttt{/path/to/nextflow} each time you want to run it.
 
 Depending on the system this may suffice:
 
-\begin{steps}
 \begin{lstlisting}
 mkdir -p $HOME/bin
 mv ./nextflow $HOME/bin
 \end{lstlisting}
-\end{steps}
 
 You should now be able to run \texttt{nextflow} without specifying the location of the binary.
 
@@ -178,10 +176,11 @@ conda config --add channels bioconda
 conda config --add channels conda-forge
 #####
 \end{lstlisting}
+\end{steps}
 
 \begin{warning}
 
-Do NOT run the following command! This is provided for future reference so you know how to Install Nextflow on another system using conda. Rather than
+Do NOT run the following command! This is provided for future reference so you know how to install Nextflow on another system using conda. Rather than
 creating the conda environment from scratch, we'll simply copy a pre-existing directory so we save time, and possible headaches.
 
 \begin{lstlisting}
@@ -192,6 +191,7 @@ conda create \
   snakemake=${NEXTFLOW_VERSION:-19.04.0}
 \end{lstlisting}
 
+
 Nextflow installation is now complete.
 
 \end{warning}
@@ -201,15 +201,17 @@ Nextflow installation is now complete.
 Now simply copy the following \texttt{.conda} directory and you
 will have Nextflow setup and ready to go:
 
+\begin{steps}
 \begin{lstlisting}
 mkdir --parents /shared/${USER}
 cp --recursive \
   /shared/ubuntu/.conda \
   /shared/${USER}/
 \end{lstlisting}
+\end{steps}
 
 All that is left to do is to activate the environment which will make \texttt{nextflow} available on the command line:
-
+\begin{steps}
 \begin{lstlisting}
 # Activate the newly created conda environment
 conda activate nextflow
@@ -284,7 +286,7 @@ Run the \texttt{main.nf} script and observe the terminal output
 nextflow run main.nf 
 \end{lstlisting}
 
-You should see some generic run-time information as well as 
+Among the terminal output you should see that the local executor is being used and that a number of \texttt{sayHello} processes (tasks) have been submitted. You should also see the hellos being printed to the terminal.
 
 Run the hello script again a few times and observe the effect of using the \texttt{-resume} flag
 
@@ -309,16 +311,22 @@ With \texttt{-resume}, Nextflow will not re-run the tasks and report them as \te
 
 Single-dashed options are reserved for Nextflow engine (\texttt{-resume, -ansi-log false} etc). 
 The double-dashed options are all yours and you are free to use them for your workflow. 
-When you \texttt{nextflow run some\_script.nf --foo bar}, 
-the value of the parameter (`bar')
-will be accessible in \texttt{main.nf} as \texttt{params.foo}
-and within a script block as \texttt{\$params.foo}.
 
+In the `hello' example we use the variable \texttt{params.universe} which is by default set to `World'.
+To set the variable to a different value, say `Mundo', we use the variable name prefixed by a double-dash 
+as runtime option and the new string as its parameter, e.g.\ \texttt{--universe Mundo}.
+
+The value of the parameter (`Mundo' in this case) will be accessible in \texttt{main.nf} as 
+
+\begin{itemize}
+\item \texttt{params.universe} in ``plain'' code 
+\item \texttt{\$params.universe} in GStrings (interpolated strings) -- including the script block
+\end{itemize}
 
 
 \begin{steps}
 
-In the `hello' example we use the variable \texttt{params.universe} which is by default set to `World', so lets try to use an alternative string.
+Lets re-run the script.
 
 \begin{lstlisting}
 nextflow run main.nf -resume --universe Mundo 
@@ -337,7 +345,7 @@ set to \texttt{`Mundo'} rather than \texttt{`World'}
 \begin{note}
 When the pipeline is launched with the \texttt{-resume} option, 
 any attempt to execute previously executed process with the same inputs
-will cause the process execution to be skipped, 
+will cause the process execution to be omitted, 
 producing the previously stored outputs.
 
 In this toy example we do not specify any outputs files
@@ -437,9 +445,9 @@ The nextflow hello example shown us how the \texttt{sayHello} process was execut
 We would now like each task to be submitted as a batch job for execution on one of the compute nodes.
 
 Thanks to Nextflow's out-of-the-box support for different compute environments, 
-it only requires changing the process executor from the default \texttt{local} to \texttt{slurm}.
+this only requires changing the process executor from the default \texttt{local} to \texttt{slurm}.
 This could be done via configuration files (more about that later) or using the directive \texttt{executor `slurm'} in the process definition. 
-However, for our simple use-case it should suffice to use the \texttt{NXF\_EXECUTOR} environmental variable. Try that without \texttt{-resume}.
+However, for our simple use-case it should suffice to use the \texttt{NXF\_EXECUTOR} environmental variable. Try that without \texttt{-resume} to avoid the cached results being reported.
 
 
 \begin{steps}
@@ -474,7 +482,13 @@ echo "$cheer ${params.universe}!  -- from ${task.executor} \$HOSTNAME"
 
 \begin{warning}
 Note the difference between how nextflow variables (\texttt{\$x,\$params.universe}) and bash variables (\texttt{\$HOSTNAME})are included in the script block.
-There are alternative ways of including variables in scripts for execution by nextflow processes which may be more convenient if your script contains multiple special characters. See for example \href{https://www.nextflow.io/docs/latest/process.html#process-shell}{Nextflow documentation of the alternative \texttt{shell} block}\footnote{\url{https://www.nextflow.io/docs/latest/process.html\#process-shell}}. 
+There are alternative ways of including variables in scripts for execution by nextflow processes which may be more convenient if your script contains multiple special characters. See for example \href{https://www.nextflow.io/docs/latest/process.html#process-shell}{Nextflow documentation of the alternative \texttt{shell} block}\footnote{\url{https://www.nextflow.io/docs/latest/process.html\#process-shell}
+} or consider using alternative string delimiters, particularly the \href{http://groovy-lang.org/syntax.html#_dollar_slashy_string}{dollar slashy}\footnote{\url{http://groovy-lang.org/syntax.html\#_dollar\_slashy\_string}}.
+More broadly, remember that 
+\begin{itemize}
+\item single- and triple-single-quote delimited strings are literal
+\item double- and triple-double-quote delimited strings are GStrings\footnote{\url{https://groovy-lang.org/syntax.html\#\_string\_interpolation}} (interpolated strings).
+\end{itemize} 
 \end{warning}
 
 \begin{steps}
@@ -497,7 +511,7 @@ aspect -- but you would be missing a lot in terms of flexibility, extensibility,
 Nextflow looks for workflow configuration primarily in \texttt{nextflow.config} file, and additional config files can be included. Unsurprisingly the `hello' example does not require much configuration,
 we would also like to crunch some real, albeit small, data.
 
-Let's have a play with a slightly more practical workflow.
+Let's have a play with a slightly more practical workflow which will help us with exploring other features of Nextflow.
 \end{note}
 
 
@@ -514,7 +528,6 @@ The workflow includes the following steps
 \begin{itemize}
   \item Run FastQC across the raw read (FASTQ) files
   \item Adapter, quality, and read length filtering using Trimmomatic
-  \item Aggregating FastQC reports from the raw reads using MultiQC
   \item Index the reference FASTA file
   \item Perform a \texttt{bwa-mem} read alignment
 \end{itemize}
@@ -578,11 +591,28 @@ the provided script to download the required input files
 %------------------------
 
 There are multiple ways in which you can provision a software environment for your workflow.
-You may have al the required tools installed on your system or available as a collection of pre-compiled binaries? Perhaps a friendly sysadmin installs convenient modules on your HPC cluster? You may also be using conda or perhaps docker or singularity containers? All those options are compatible with Nextflow. 
+You may have all the required tools installed on your system or available as a collection of pre-compiled binaries. Perhaps a friendly sysadmin installs convenient modules on your HPC cluster? You may also be using conda or perhaps docker or singularity containers? All those options are compatible with Nextflow. 
 %The software environment for this workshop was put together using conda and captured in a Singularity container image. 
 
 We have provided a rudimentary script \texttt{versions.nf} which tries to run each of the software tools,
 and report their version numbers. 
+
+\begin{lstlisting}
+#!/usr/bin/env nextflow
+
+process get_versions {
+  echo true
+
+  script:
+  """
+  fastqc --version
+  multiqc --version
+  echo -n "bwa " &&  bwa 2>&1 | grep 'Version'
+  echo -n "samtools "&&  samtools 2>&1 | grep 'Version'
+  """
+}
+\end{lstlisting}
+
 
 
 \begin{steps}
@@ -648,9 +678,9 @@ Tip: view the complete command output by changing to the process work dir and en
 There are different ways in which we could ensure that the relevant software is available, for example using process 
 \emph{directives} at the top of each process definition. We could also use the opportunity to change the executor from local to Slurm, for example:
 \begin{lstlisting}
-process foo {
-  module 'samtools/1.9' 
-    executor 'slurm' 
+process get_versions {
+  module 'fastqc-0.11.7-gcc-5.4.0-z5pkqvq' 
+  executor 'slurm' 
   //further code omitted 
 \end{lstlisting}
 
@@ -658,17 +688,21 @@ This is a perfectly valid syntax, which can be convenient, particularly during p
 but for more portable workflows it is preferable to keep compute and software environment configuration 
 separate from pipeline logic -- in simple terms not in the workflow script (\texttt{main.nf}).
 
+%\begin{warning}
+%Note that the specific module is not available on this cluster and is only used for illustrative purposes \texttt{}
+%\end{warning}
+
 \subsection{The config file(s) and profiles}
 
-Workflow configuration belongs in \texttt{nextflow.config} file. 
+Workflow configuration belongs (primarily) in the \texttt{nextflow.config} file. 
 Transferring the above mention \emph{directives} from process definitions in \texttt{main.nf} 
-to \texttt{nextflow.config} would make things slightly better, e.g.
+to \texttt{nextflow.config} would make things slightly better. The directives must be applied 
+in the \emph{process} \href{https://www.nextflow.io/docs/latest/config.html#config-scopes}{config scope}\footnote{\url{https://www.nextflow.io/docs/latest/config.html\#config-scopes}} in \texttt{nextflow.config}.
+
 
 \begin{lstlisting}
-#nextflow.config
-
 process.executor = 'slurm' 
-process.module = 'samtools/1.9' 
+process.module = 'fastqc-0.11.7-gcc-5.4.0-z5pkqvq' 
 \end{lstlisting}
 
 or using the preferred syntax
@@ -676,7 +710,7 @@ or using the preferred syntax
 \begin{lstlisting}
 process {
   executor = slurm
-  module = 'samtools/1.9'
+  module = 'fastqc-0.11.7-gcc-5.4.0-z5pkqvq'
 }
 \end{lstlisting}
 
@@ -687,10 +721,32 @@ This is however still a bit rigid.
 \item If developing directly in the cluster environment, you may prefer your quick test runs to happen either on the head node or in an interactive session you are using, rather than always having jobs submitted to sit in the always-busy cluster queue.
 \end{itemize}
 
+
 Nextflow enables the definition of \emph{profiles} which make it easy to run a workflow 
 with different configuration settings, including, but not limited to executors and software environment.
 
-For our pipeline we have defined several \emph{profiles}, which allow us to execute the logic from \texttt{main.nf} while providing the required software either by creating a \texttt{conda} environment or by using Docker of Singularity containers where the conda environment has already been captured. 
+For our pipeline we have defined several profiles, which allow us to execute the logic from \texttt{main.nf} while providing the required software either by creating a \texttt{conda} environment or by using Docker of Singularity containers in which the conda environment has already been captured. 
+
+\begin{note} 
+A separate point is that you may  want to define different software or compute environments for different processes. 
+Profiles can go hand-in-hand with \href{https://www.nextflow.io/docs/latest/config.html?selectors#process-selectors}{process selectors}\footnote{\url{https://www.nextflow.io/docs/latest/config.html?selectors\#process-selectors}} which make it easy to apply configuration, (including software and compute config) to individual processes or subsets of processes.
+\begin{lstlisting}
+process {
+    withName: get_versions {
+        executor = 'slurm'
+        cpus = 1
+        time = 1.m
+        memory = 256.MB        
+    }
+    withLabel: slow_as_loops_in_R {
+        time = 48.h 
+    }
+}
+\end{lstlisting}
+\end{note}
+
+We can select processes by name or by a label assigned to one or more processes via the \href{https://www.nextflow.io/docs/latest/process.html#label}{\texttt{label} directive}\footnote{\url{https://www.nextflow.io/docs/latest/process.html\#label}}.
+Process selectors can also be really useful outside profile definitions -- we will revisit them later.
 
 \subsubsection{Relevant profiles}
 
@@ -787,7 +843,7 @@ Recall the steps of the original bash workflow
 We will walk you through reimplementing the first few steps 
 into a Nextflow workflow. Along the way, we will introduce the core concepts of Nextflow 
 and then ask you to reimplement the \texttt{bwa-mem} step yourselves. 
-If you finish that with some time to spare, you will have the opportunity to reimplement the \texttt{multiqc} step. 
+If you finish that with some time to spare, you will have the opportunity to reimplement the \texttt{multiqc} step and tackle other bonus exercises. 
 This will provide you with a foundation for you to be able to port your own workflows into Nextflow. 
 
 
@@ -846,7 +902,7 @@ Channel.fromPath("data/raw_reads/*.fastq.gz")
   .view()
 \end{lstlisting}
 
-Having all three operators is redundant, we will stick with \texttt{take(1)},
+Having all three operators is redundant, we will stick with \emph{take},
 due to extra flexibility it gives us.
 The last thing to do is to assign our channel to a variable whose name we can use elsewhere in the script.
 The simplest form would be
@@ -868,6 +924,7 @@ Channel.fromPath("data/raw_reads/*.fastq.gz")
   .set { readsForQcChannel }
 \end{lstlisting}
 
+For consistency, we will stick to this syntax throughout this workshop
 
 \begin{steps}
 Update \texttt{main.nf} and run it again
@@ -958,18 +1015,18 @@ nextflow run main.nf -profile slurm,singularity -resume
 How about running on a handful of samples? We could simply increase the number in our \texttt{.take(1)} call, but rather than hard-coding that, we can use command line arguments. It is a good practice to set a default value either in \texttt{nextflow.config} or in \texttt{main.nf}.
 
 \begin{lstlisting}
-params.subset = 1
+params.n = 1 //set default value
 
 Channel.fromPath("data/raw_reads/*.fastq.gz")
-  .take( params.subset )
+  .take( params.n )
   .set { readsForQcChannel }
 \end{lstlisting}
 
-No run the workflow for a subset of 5 FASTQ files
+Now run the workflow for $n = 5$ FASTQ files
 
 \begin{steps}
 \begin{lstlisting}
-nextflow run main.nf -profile slurm,singularity -resume --subset 5
+nextflow run main.nf -profile slurm,singularity -resume --n 5
 \end{lstlisting}
 \end{steps}
 
@@ -978,14 +1035,13 @@ nextflow run main.nf -profile slurm,singularity -resume --subset 5
 How would can we run it for all samples?
 \begin{answer}
 The \emph{take} operator returns all emissions when set to -1, 
-so \texttt{--subset -1} should do it. If we'd rather have \texttt{--subset all},
-then we modify or code: 
+so \texttt{--n -1} should do it. If we'd rather have \texttt{--n all},
+then we modify our code: 
 \begin{lstlisting}
-.take ( params.subset == all ? -1 : params.subset ) 
+.take ( params.n == all ? -1 : params.n ) 
 \end{lstlisting}
 \end{answer}
 \end{questions}
-
 \end{bonus}
 
 \begin{note}
@@ -1038,10 +1094,6 @@ bwa index -a bwtsw references/reference.fasta.gz
 We start by creating a channel which pass the reference file to our indexing process. 
 
 \begin{lstlisting}
-referencesChannel = Channel.fromPath('data/references/reference.fasta.gz') 
-
-# or the equivalent
-
 Channel.fromPath('data/references/reference.fasta.gz').set { referencesChannel } 
 \end{lstlisting}
 
@@ -1260,7 +1312,7 @@ If we just declare each separately
 \begin{lstlisting}
 process trimmomatic {
   input:
-    set val(accession), file(reads) from readPairsForTrimmingChannel
+    set val(sample), file(reads) from readPairsForTrimmingChannel
     file(adapters) from adaptersChannel
 ...    
 \end{lstlisting}
@@ -1277,7 +1329,7 @@ each pair of FASTQ files. Enter the \texttt{combine()} operator.
 process trimmomatic_pe {
 
   input:
-    set file(adapters), val(accession), file(reads) 
+    set file(adapters), val(sample), file(reads) 
       from adaptersChannel.combine(readPairsForTrimmingChannel)
 ...
 \end{lstlisting}
@@ -1286,7 +1338,7 @@ This covers our inputs and we can now focus on the outputs and the script block.
 As mentioned earlier we don't have to be too specific about the output file names 
 but just have to make it clear to NF which output files are to be sent to an output channel.
 In this case these are the ones with names ending with \texttt{paired.fastq.gz}.
-We also output the \texttt{accession} variable to keep track of which sample is being processed.
+We also output the \texttt{sample} variable to keep track of which sample is being processed.
 %We do not have to use the \texttt{accession} and the output files could simply be named 
 %\texttt{R1.paired.fastq.gz, ..., R2.unpaired.fastq.gz} or similar. 
 
@@ -1294,10 +1346,10 @@ We also output the \texttt{accession} variable to keep track of which sample is 
 process trimmomatic_pe {
 
   input:
-    set file(adapters), val(accession), file(reads) 
+    set file(adapters), val(sample), file(reads) 
       from adaptersChannel.combine(readPairsForTrimmingChannel)
   output:
-    set val(accession), file('*.paired.fastq.gz') into trimmedReadsChannel
+    set val(sample), file('*.paired.fastq.gz') into trimmedReadsChannel
 ...
 \end{lstlisting}
 
@@ -1314,10 +1366,10 @@ is straightforward.
 \begin{lstlisting}
 process trimmomatic_pe {
   input:
-    set file(adapters), val(accession), file(reads) from adaptersChannel.combine(readPairsForTrimmingChannel)
+    set file(adapters), val(sample), file(reads) from adaptersChannel.combine(readPairsForTrimmingChannel)
 
   output:
-    set val(accession), file('*.paired.fastq.gz') into trimmedReadsChannel
+    set val(sample), file('*.paired.fastq.gz') into trimmedReadsChannel
 
   script:
   """
@@ -1340,6 +1392,15 @@ process trimmomatic_pe {
 
 
 % \item The \texttt{\$\{reads\}} is the list comprised of the two input read files. These could be accessed individually using \texttt{\$\{reads[0]\}} and \texttt{\$\{reads[1]\}}.
+
+
+\begin{note}
+If the above tasks caused you some un-recoverable issues you can rename or delete your main.nf and check-out a revision where the above steps have been captured.
+\begin{lstlisting}
+mv main.nf mytrim.nf
+git checkout trim
+\end{lstlisting}
+\end{note}
 
 
 %------------------------
@@ -1378,36 +1439,30 @@ Use the \emph{combine} operator to combine the \texttt{indexChannel} with the \t
 \begin{lstlisting}
 process bwa_mem {
   input:
-    
+    set val(prefix), file(index), val(sample), file(reads) from indexChannel.combine(trimmedReadsChannel)
+
   output:
+    file '*.bam'
+
     
   script:
   """
   bwa mem -t ${task.cpus} ${ref} ${reads} \
-  | samtools view -b > ${accession}.bam
+  | samtools view -b > ${sample}.bam
   """
 }
 \end{lstlisting}
 \end{answer}
+
+
+If you would like to compare your answer with the ``official'' one, ask your facilitator for instructions. 
 \begin{answer}
+\begin{lstlisting}
+mv main.nf mymap.nf
+git checkout map
+\end{lstlisting}
 \end{answer}
 \end{questions}
-
-
-%------------------------
-\subsection{Adding New Samples}
-%------------------------
-
-Since we had to stop the channel from sucking up all the samples by applying the take operator 
-we expect you may already know how to make sure all samples are processed.
-
-
-
-
-%
-%We are going to work with an example Nextflow workflow to demonstrate how they are run, 
-%improve your understanding of \emph{processes} and \emph{channels} and finally introduce\ \emph{operators}, which are applied to channels to shape and direct flowing data.
-
 
 
 
@@ -1468,35 +1523,6 @@ Identify and investigate hidden file (starting with dot) containing the executed
 
 
 
-\begin{bonus}
-For an optional exercise you may try to re-run the workflow with \texttt{conda}.
-For that, you'll need to find and load a conda module before re-running the workflow with appropriate profile. Don't forget to use the \texttt{-resume} flag.
-\begin{answer}
-\begin{lstlisting}
-# Find the appropriate module name
-module av -l 2>&1 | grep conda
-
-# Load the module
-module load miniconda3-4.6.14-gcc-5.4.0-kkzv7zk
-
-# Run with conda
-nextflow run main.nf -profile conda,slurm --take -1 -resume
-
-\end{lstlisting}
-\end{answer}
-
-If you remembered to use \texttt{-resume}, why do you think it appeared to not make a difference?
-
-\begin{answer}
-We have switched from singularity to conda so the software environment has changed.  
-\end{answer}
-
-
-\end{bonus}
-
-
-
-
 %\begin{figure}[H]
 %\centering
 %\includegraphics[width=\textwidth]{handout/flowchart.png}
@@ -1534,6 +1560,19 @@ We now now each task is nicely isolated in a separate sub-directory under \textt
 %In \texttt{conf/publish.config} we only really use the \texttt{withName} selectors. 
 %
 %\end{bonus}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 %\subsection{Cluster run - all accessions}
 %
@@ -1580,38 +1619,48 @@ We now now each task is nicely isolated in a separate sub-directory under \textt
 %%
 %\end{questions}
 
-\subsubsection{Monitoring your jobs on our cluster}
 
-\begin{note}
-You can monitor your job(s) in the slurm queue using the slurm command \texttt{squeue}:
+
+\section{Bonus tasks}
+
+If you exhaust the core contents of the workshop you could proceed with solving the following bonus exercises.
+
+\begin{bonus}
+For an optional exercise you may try to re-run the workflow with \texttt{conda}.
+For that, you'll need to find and load a conda module before re-running the workflow with appropriate profile. Don't forget to use the \texttt{-resume} flag.
+\begin{answer}
+\begin{lstlisting}
+# Find the appropriate module name
+module av -l 2>&1 | grep conda
+
+# Load the module
+module load miniconda3-4.6.14-gcc-5.4.0-kkzv7zk
+
+# Run with conda
+nextflow run main.nf -profile conda,slurm --take -1 -resume
+
+\end{lstlisting}
+\end{answer}
+
+If you remembered to use \texttt{-resume}, why do you think it appeared to not make a difference?
+
+\begin{answer}
+We have switched from singularity to conda so the software environment has changed.  
+\end{answer}
+
+
+\end{bonus}
+
+
+\begin{bonus}
+
+Edit \texttt{main.nf}. Your task is to add \texttt{merge\_bams} process which will merge the bam files produced by the \texttt{bwa\_mem} process. 
+The relevant \texttt{samtools} command should follow this pattern.
 
 \begin{lstlisting}
-squeue --user ${USER}
+samtools merge outfile.bam infile1.bam infile2.bam infile3.bam 
 \end{lstlisting}
 
-For convenience you are also provided with the \texttt{sq} function which produces nicer output and by default only shows your own jobs:
-
-\begin{lstlisting}
-sq
-
-# Someone elses jobs
-sq --user ${SOMEONE_ELSE}
-\end{lstlisting}
-
-If you want to see all jobs in the queue:
-
-\begin{lstlisting}
-squeue
-\end{lstlisting}
-
-\end{note}
-
-
-\section{Modify/extend the workflow}
-
-\begin{steps}
-
-Edit \texttt{main.nf}. Your task is to add a process which will merge the bam files produced by the \texttt{bwa\_mem} process. 
 
 \begin{questions}
 How do you ensure that \textbf{all} BAM files end up in the same instance of your process?
@@ -1622,30 +1671,70 @@ Demonstrate your process definition to your facilitator.
 
 \begin{answer}
 \begin{lstlisting}
-process bam_merge {
+process merge_bams {
   input:
     file('*.bam') from alignedReadsChannel.collect()
 
   script:
   """
-  samtools merge ${params.take}_accessions_megred.bam *.bam
+  samtools merge ${params.n}_samples_megred.bam *.bam
   """
 }
 \end{lstlisting}
 \end{answer}
 Where can we find the merged BAM file? Can you publish it to a human-readable location? Hint: only declared outputs can be published.
-\end{questions}
+\begin{answer}
+\begin{lstlisting}
+  publishDir 'results/aligned', mode: 'copy'
 
-\begin{bonus}
-\begin{questions}
+  output:
+    file '*.bam' into alignedReadsChannel
+\end{lstlisting}
+\end{answer}
+
 Modify your merge process to allow samtools to use 2 cpus with \texttt{--threads 2},
 don't forget to modify your process configuration to request 2 cpus per task.
 \end{questions}
+\begin{answer}
+\begin{lstlisting}
+process merge_bams {
+  cpus 2
+
+  input:
+    file('*.bam') from alignedReadsChannel.collect()
+
+  script:
+  """
+  samtools merge --threads ${task.cpus} ${params.n}_samples_megred.bam *.bam
+  """
+}
+\end{lstlisting}
+\end{answer}
 \end{bonus}
 
 
-\end{steps}
+\begin{bonus}
+Add \texttt{multiqc} process to summarize all FastQC outputs in a single report.
+Make sure the outputs are easily findable e.g.\ in \texttt{./results/multiqc}.
+\begin{answer}
+\begin{lstlisting}
+process multiqc {
+  publishDir 'results/multiqc', mode: 'copy'
+  
+  input: 
+    file '*' from fastQCdChannel.collect()
 
+  output:
+    file '*'
+
+  script:
+  """
+  multiqc .
+  """
+}
+\end{lstlisting}
+\end{answer}
+\end{bonus}
 
 
 %% To make a paragraph appear as a "note" to the reader, simply wrap it in a "note" environment like
@@ -1693,4 +1782,29 @@ export NXF_ANSI_LOG=false
 \end{lstlisting}
 \end{steps}
 
+\subsubsection{Monitoring your jobs on our cluster}
+
+\begin{note}
+You can monitor your job(s) in the slurm queue using the slurm command \texttt{squeue}:
+
+\begin{lstlisting}
+squeue --user ${USER}
+\end{lstlisting}
+
+For convenience you are also provided with the \texttt{sq} function which produces nicer output and by default only shows your own jobs:
+
+\begin{lstlisting}
+sq
+
+# Someone elses jobs
+sq --user ${SOMEONE_ELSE}
+\end{lstlisting}
+
+If you want to see all jobs in the queue:
+
+\begin{lstlisting}
+squeue
+\end{lstlisting}
+
+\end{note}
 
