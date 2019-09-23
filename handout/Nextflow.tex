@@ -301,7 +301,8 @@ You may run the hello script a few more times with and without \texttt{-resume}.
 \begin{questions}
 How does the output differ depending on whether the \texttt{-resume} flag is used?
 \begin{answer}
-With \texttt{-resume}, Nextflow will not re-run the tasks and report them as \texttt{cached}. 
+With \texttt{-resume}, Nextflow does not re-submit the tasks. Instead of printing ``\texttt{Submitted process}'' for each task, it prints ``\texttt{Cached process}''.
+The hello messages are still printed but note that they are simply retrieved from files which hold the output of previously computed tasks. 
 \end{answer}
 \end{questions}
 
@@ -421,7 +422,7 @@ The content of the above script can be broken down as follows:
 \begin{itemize}
   \item The shebang line (line 1) is optional.
   \item \texttt{Channel.from(some\_list)} creates a channel emitting the list elements one by one.
-  \item \texttt{params.universe = `World'} sets the default value of the command-line accessible option (e.g.\ \texttt{--world Mundo})
+  \item \texttt{params.universe = `World'} sets the default value of the command-line accessible option (e.g.\ \texttt{--universe Mundo})
   \item \href{https://www.nextflow.io/docs/latest/process.html}{Process} definition (lines 7-16)
   \begin{itemize}
     \item Directives are placed at the top, directive \texttt{echo} controls whether \texttt{stdout} of the process is redirected to your terminal
@@ -520,7 +521,7 @@ Let's have a play with a slightly more practical workflow which will help us wit
 
 \section{Reimplementing a workflow in Nextflow}
 
-In the Snakemake section of our tutorial, we include an example bash ``pipeline'', which 
+In the Snakemake section of our tutorial, we presented an example bash ``pipeline'', which 
 includes a number of common tasks wrapped in a single 
 \href{https://github.com/UofABioinformaticsHub/snakemake_template/blob/tutorial/analysis.sh}{bash script}\footnote{\url{https://github.com/UofABioinformaticsHub/snakemake_template/blob/tutorial/analysis.sh}}.
 The workflow includes the following steps
@@ -1038,8 +1039,14 @@ The \emph{take} operator returns all emissions when set to -1,
 so \texttt{--n -1} should do it. If we'd rather have \texttt{--n all},
 then we modify our code: 
 \begin{lstlisting}
-.take ( params.n == all ? -1 : params.n ) 
+.take ( params.n == 'all' ? -1 : params.n ) 
 \end{lstlisting}
+
+An alternative solution would be to simply comment out the \texttt{.take()} line
+\begin{lstlisting}
+// .take( params.n )
+\end{lstlisting}
+
 \end{answer}
 \end{questions}
 \end{bonus}
@@ -1265,7 +1272,7 @@ it smoothly handles paired files.
 Channel.fromFilePairs("data/raw_reads/*_R{1,2}.fastq.gz")
   .take (1)
   .view ()
-  .into { readPairsForTrimmingChannel }
+  .set { readPairsForTrimmingChannel }
 \end{lstlisting}
 
 
@@ -1446,10 +1453,10 @@ Use the \emph{combine} operator to combine the \texttt{indexChannel} with the \t
 \begin{lstlisting}
 process bwa_mem {
   input:
-    set val(prefix), file(index), val(sample), file(reads) from indexChannel.combine(trimmedReadsChannel)
+    set val(ref), file(index), val(sample), file(reads) from indexChannel.combine(trimmedReadsChannel)
 
   output:
-    file '*.bam'
+    file '*.bam' into alignedReadsChannel
 
     
   script:
@@ -1692,11 +1699,13 @@ process merge_bams {
 Where can we find the merged BAM file? Can you publish it to a human-readable location? Hint: only declared outputs can be published.
 \begin{answer}
 \begin{lstlisting}
-  publishDir 'results/aligned', mode: 'copy'
+  publishDir 'results/merged', mode: 'copy'
 
   output:
-    file '*.bam' into alignedReadsChannel
+    file '*.bam'
 \end{lstlisting}
+
+Note that as the output is not consumed within the pipeline we do not have to declare an output channel, just the output file to ensure it is copied to the \texttt{publishDir}.
 \end{answer}
 
 Modify your merge process to allow samtools to use 2 cpus with \texttt{--threads 2},
@@ -1724,6 +1733,28 @@ process merge_bams {
 Add \texttt{multiqc} process to summarize all FastQC outputs in a single report.
 Make sure the outputs are easily findable e.g.\ in \texttt{./results/multiqc}.
 \begin{answer}
+First of all, we need to make sure that the fastqc process outputs are declared and emitted via a channel. Note the added output block.
+
+\begin{lstlisting}
+process fastqc {
+  cpus 2
+    
+  input:
+   file(reads) from readsForQcChannel
+
+  output:
+    file '*' into fastQCdChannel
+
+  script:
+  """
+  fastqc  --threads ${task.cpus} ${reads}
+  """
+}
+
+\end{lstlisting}
+
+We then use \texttt{.collect()} operator so that FastQC output files for \emph{all} the samples are stage as input for a \emph{single} multiqc task.
+
 \begin{lstlisting}
 process multiqc {
   publishDir 'results/multiqc', mode: 'copy'
