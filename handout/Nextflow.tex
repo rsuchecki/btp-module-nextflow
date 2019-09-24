@@ -10,7 +10,8 @@
   Rados{\l}aw Suchecki \mailto{rad.suchecki@csiro.au}
 }
 \setModuleContributions{
-Nathan S. Watson-Haigh \mailto{nathan.watson-haigh@adelaide.edu.au}
+Nathan S. Watson-Haigh \mailto{nathan.watson-haigh@adelaide.edu.au}\\
+Marco De La Pierre \mailto{marco.delapierre@pawsey.org.au}
 }
 
 % BEGIN: Module Title Page
@@ -1562,6 +1563,15 @@ Identify and investigate hidden file (starting with dot) containing the executed
 \subsection{Workflow outputs}
 
 We now now each task is nicely isolated in a separate sub-directory under \texttt{work}, but how do I find my results? Was it \texttt{work/a7:fc9339a827fb4b34d2408e1c3ee29c} or maybe \texttt{work/3c:8fdf958e96b448ecb83bd7806af382}? This should be handled by applying the \href{https://www.nextflow.io/docs/latest/process.html#publishdir}{\texttt{publishDir} directive}\footnote{\url{https://www.nextflow.io/docs/latest/process.html\#publishdir}} to selected processes. As with other directives, this can be included at the top of the process block or in a configuration file using \href{https://www.nextflow.io/docs/latest/config.html#process-selectors}{process selectors}\footnote{\url{https://www.nextflow.io/docs/latest/config.html\#process-selectors}} to apply the directive to one or more relevant process. 
+
+The basic use of the \texttt{publishDir} directive (as per the following example) will result in a symlink to the declared output file being created in \texttt{results/aligned}.
+
+\begin{lstlisting}
+process bwa_mem {
+   publishDir 'results/aligned'
+\end{lstlisting}
+
+
 
 %To keep things tidy-ish, we define the publishing of the outputs in a separate file 
 %which we \texttt{includeConfig 'conf/publish.config'} in \texttt{nextflow.config}. 
