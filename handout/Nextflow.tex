@@ -199,13 +199,14 @@ Nextflow installation is now complete.
 
 
 
-Now simply copy the following \texttt{.conda} directory and you
+Now simply rsync the following \texttt{.conda} directory and you
 will have Nextflow setup and ready to go:
+
 
 \begin{steps}
 \begin{lstlisting}
 mkdir --parents /shared/${USER}
-cp --recursive \
+rsync --recursive \
   /shared/ubuntu/.conda \
   /shared/${USER}/
 \end{lstlisting}
@@ -1221,7 +1222,7 @@ process bwa_index {
 }  
 \end{lstlisting}
 
-You could temporarily add  \texttt{indexChannel.view()} to see how the output looks. 
+You could temporarily add \texttt{indexChannel.view()} (after the process definition) to see how the output looks. 
 
 
 \begin{steps}
@@ -1649,31 +1650,31 @@ process bwa_mem {
 
 If you exhaust the core contents of the workshop you could proceed with solving the following bonus exercises.
 
-\begin{bonus}
-For an optional exercise you may try to re-run the workflow with \texttt{conda}.
-For that, you'll need to find and load a conda module before re-running the workflow with appropriate profile. Don't forget to use the \texttt{-resume} flag.
-\begin{answer}
-\begin{lstlisting}
-# Find the appropriate module name
-module av -l 2>&1 | grep conda
-
-# Load the module
-module load miniconda3-4.6.14-gcc-5.4.0-kkzv7zk
-
-# Run with conda
-nextflow run main.nf -profile conda,slurm --take -1 -resume
-
-\end{lstlisting}
-\end{answer}
-
-If you remembered to use \texttt{-resume}, why do you think it appeared to not make a difference?
-
-\begin{answer}
-We have switched from singularity to conda so the software environment has changed.  
-\end{answer}
-
-
-\end{bonus}
+%\begin{bonus}
+%For an optional exercise you may try to re-run the workflow with \texttt{conda}.
+%For that, you'll need to find and load a conda module before re-running the workflow with appropriate profile. Don't forget to use the \texttt{-resume} flag.
+%\begin{answer}
+%\begin{lstlisting}
+%# Find the appropriate module name
+%module av -l 2>&1 | grep conda
+%
+%# Load the module
+%module load miniconda3-4.6.14-gcc-5.4.0-kkzv7zk
+%
+%# Run with conda
+%nextflow run main.nf -profile conda,slurm --take -1 -resume
+%
+%\end{lstlisting}
+%\end{answer}
+%
+%If you remembered to use \texttt{-resume}, why do you think it appeared to not make a difference?
+%
+%\begin{answer}
+%We have switched from singularity to conda so the software environment has changed.  
+%\end{answer}
+%
+%
+%\end{bonus}
 
 
 \begin{bonus}
