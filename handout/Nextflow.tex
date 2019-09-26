@@ -122,13 +122,13 @@ This is provided for future reference so you know how to install Nextflow on ano
 \begin{lstlisting}
 # Load the Java module on your cluster
 # If it's unavailable contact the cluster sysadmin
-module load openjdk-1.8.0_202-b08-gcc-5.4.0-sypwasp 
+#module load openjdk-1.8.0_202-b08-gcc-5.4.0-sypwasp 
 
 # Download and install nextflow executable
-curl -s https://get.nextflow.io | bash
+#curl -s https://get.nextflow.io | bash
 
 # You should now be able to run it
-./nextflow -version
+#./nextflow -version
 \end{lstlisting}
 
 The installation should have placed the executable in your working directory.
@@ -185,10 +185,10 @@ creating the conda environment from scratch, we'll simply copy a pre-existing di
 
 \begin{lstlisting}
 # Install nextflow using conda
-conda create \
-  --name nextflow \
-  --yes \
-  nextflow=${NEXTFLOW_VERSION:-19.04.0}
+#conda create \
+#  --name nextflow \
+#  --yes \
+#  nextflow=${NEXTFLOW_VERSION:-19.04.0}
 \end{lstlisting}
 
 
