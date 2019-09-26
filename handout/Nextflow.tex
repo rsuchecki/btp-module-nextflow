@@ -206,7 +206,7 @@ will have Nextflow setup and ready to go:
 \begin{steps}
 \begin{lstlisting}
 mkdir --parents /shared/${USER}
-rsync --recursive \
+rsync --archive  \
   /shared/ubuntu/.conda \
   /shared/${USER}/
 \end{lstlisting}
