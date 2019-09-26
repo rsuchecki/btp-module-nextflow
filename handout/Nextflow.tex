@@ -10,7 +10,8 @@
   Rados{\l}aw Suchecki \mailto{rad.suchecki@csiro.au}
 }
 \setModuleContributions{
-Nathan S. Watson-Haigh \mailto{nathan.watson-haigh@adelaide.edu.au}
+Nathan S. Watson-Haigh \mailto{nathan.watson-haigh@adelaide.edu.au}\\
+Marco De La Pierre \mailto{marco.delapierre@pawsey.org.au}
 }
 
 % BEGIN: Module Title Page
@@ -198,13 +199,14 @@ Nextflow installation is now complete.
 
 
 
-Now simply copy the following \texttt{.conda} directory and you
+Now simply rsync the following \texttt{.conda} directory and you
 will have Nextflow setup and ready to go:
+
 
 \begin{steps}
 \begin{lstlisting}
 mkdir --parents /shared/${USER}
-cp --recursive \
+rsync --recursive \
   /shared/ubuntu/.conda \
   /shared/${USER}/
 \end{lstlisting}
@@ -1220,7 +1222,7 @@ process bwa_index {
 }  
 \end{lstlisting}
 
-You could temporarily add  \texttt{indexChannel.view()} to see how the output looks. 
+You could temporarily add \texttt{indexChannel.view()} (after the process definition) to see how the output looks. 
 
 
 \begin{steps}
@@ -1563,6 +1565,15 @@ Identify and investigate hidden file (starting with dot) containing the executed
 
 We now now each task is nicely isolated in a separate sub-directory under \texttt{work}, but how do I find my results? Was it \texttt{work/a7:fc9339a827fb4b34d2408e1c3ee29c} or maybe \texttt{work/3c:8fdf958e96b448ecb83bd7806af382}? This should be handled by applying the \href{https://www.nextflow.io/docs/latest/process.html#publishdir}{\texttt{publishDir} directive}\footnote{\url{https://www.nextflow.io/docs/latest/process.html\#publishdir}} to selected processes. As with other directives, this can be included at the top of the process block or in a configuration file using \href{https://www.nextflow.io/docs/latest/config.html#process-selectors}{process selectors}\footnote{\url{https://www.nextflow.io/docs/latest/config.html\#process-selectors}} to apply the directive to one or more relevant process. 
 
+The basic use of the \texttt{publishDir} directive (as per the following example) will result in a symlink to the declared output file being created in \texttt{results/aligned}.
+
+\begin{lstlisting}
+process bwa_mem {
+   publishDir 'results/aligned'
+\end{lstlisting}
+
+
+
 %To keep things tidy-ish, we define the publishing of the outputs in a separate file 
 %which we \texttt{includeConfig 'conf/publish.config'} in \texttt{nextflow.config}. 
 
@@ -1639,31 +1650,31 @@ We now now each task is nicely isolated in a separate sub-directory under \textt
 
 If you exhaust the core contents of the workshop you could proceed with solving the following bonus exercises.
 
-\begin{bonus}
-For an optional exercise you may try to re-run the workflow with \texttt{conda}.
-For that, you'll need to find and load a conda module before re-running the workflow with appropriate profile. Don't forget to use the \texttt{-resume} flag.
-\begin{answer}
-\begin{lstlisting}
-# Find the appropriate module name
-module av -l 2>&1 | grep conda
-
-# Load the module
-module load miniconda3-4.6.14-gcc-5.4.0-kkzv7zk
-
-# Run with conda
-nextflow run main.nf -profile conda,slurm --take -1 -resume
-
-\end{lstlisting}
-\end{answer}
-
-If you remembered to use \texttt{-resume}, why do you think it appeared to not make a difference?
-
-\begin{answer}
-We have switched from singularity to conda so the software environment has changed.  
-\end{answer}
-
-
-\end{bonus}
+%\begin{bonus}
+%For an optional exercise you may try to re-run the workflow with \texttt{conda}.
+%For that, you'll need to find and load a conda module before re-running the workflow with appropriate profile. Don't forget to use the \texttt{-resume} flag.
+%\begin{answer}
+%\begin{lstlisting}
+%# Find the appropriate module name
+%module av -l 2>&1 | grep conda
+%
+%# Load the module
+%module load miniconda3-4.6.14-gcc-5.4.0-kkzv7zk
+%
+%# Run with conda
+%nextflow run main.nf -profile conda,slurm --take -1 -resume
+%
+%\end{lstlisting}
+%\end{answer}
+%
+%If you remembered to use \texttt{-resume}, why do you think it appeared to not make a difference?
+%
+%\begin{answer}
+%We have switched from singularity to conda so the software environment has changed.  
+%\end{answer}
+%
+%
+%\end{bonus}
 
 
 \begin{bonus}
